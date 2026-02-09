@@ -1,0 +1,82 @@
+.section-title {
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.section-subtitle {
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin-bottom: 24px;
+}
+
+/* STATUS BARS */
+.status-bar {
+    display: flex;
+    gap: 0;
+    margin-bottom: 24px;
+    border-radius: 6px;
+    overflow: hidden;
+    height: 48px;
+    font-weight: bold;
+    text-align: center;
+    align-items: center;
+}
+
+.status-bar-section {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    transition: opacity 0.3s;
+}
+
+.status-bar-section:hover {
+    opacity: 0.9;
+}
+
+.status-dont-touch {
+    background-color: var(--primary-red);
+}
+
+.status-wait {
+    background-color: var(--accent-yellow);
+    color: #000;
+}
+
+.status-have-edge {
+    background-color: var(--accent-green);
+}
+
+.status-bar-icons {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+    padding-right: 16px;
+}
+
+.icon-btn {
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border-color);
+    background-color: transparent;
+    color: var(--text-secondary);
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+}
+
+.icon-btn:hover {
+    background-color: var(--bg-card);
+    color: var(--text-primary);
+}

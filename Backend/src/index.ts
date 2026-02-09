@@ -1,0 +1,2 @@
+import './workers';
+import './server';
