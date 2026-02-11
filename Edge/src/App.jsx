@@ -4,6 +4,7 @@ import Header from './components/Header/Header';
 import TopStats from './components/TopStats/TopStats';
 import HypeTracker from './components/HypeTracker/HypeTracker';
 import TokenTable from './components/TokenTable/TokenTable';
+import FilterBar from './components/FilterBar/FilterBar';
 import Sidebar from './components/Sidebar/Sidebar';
 import EdgeMemory from './components/EdgeMemory/EdgeMemory';
 import EdgeZoneHistory from './components/EdgeZoneHistory/EdgeZoneHistory';
@@ -115,6 +116,7 @@ function EdgeZoneApp() {
 
             <div className="content-wrapper">
               <div className="main-panel">
+                <FilterBar />
                 {isError ? (
                   <div className="error-panel">
                     <span>⚠️ Failed to load tokens</span>

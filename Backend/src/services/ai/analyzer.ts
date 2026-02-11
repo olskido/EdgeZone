@@ -222,9 +222,10 @@ function generateRuleBasedAnalysis(
     marketData: any,
     breakdown: any
 ): AIAnalysis {
-    // Calculate sentiment from patterns
-    const bullishSignals = breakdown.accumulators + breakdown.diamondHands;
-    const bearishSignals = breakdown.paperHands;
+    // Enhanced Rule-Based Logic for "Why Buy/Avoid"
+    const whaleCount = breakdown.whales;
+    const diamondHands = breakdown.diamondHands;
+    const jeeters = breakdown.paperHands;
 
     // Whale activity analysis
     const recentWhales = whaleActivity.filter(w =>
@@ -234,38 +235,54 @@ function generateRuleBasedAnalysis(
         sum + (w.type === 'buy' ? w.amountUsd : -w.amountUsd), 0
     );
 
-    // Determine sentiment
+    // Default state
     let sentiment: 'BULLISH' | 'BEARISH' | 'NEUTRAL' = 'NEUTRAL';
     let sentimentColor: 'GREEN' | 'RED' | 'BLUE' = 'BLUE';
-
-    if (bullishSignals > bearishSignals + 1) {
-        sentiment = 'BULLISH';
-        sentimentColor = 'GREEN';
-    } else if (bearishSignals > bullishSignals + 1) {
-        sentiment = 'BEARISH';
-        sentimentColor = 'RED';
-    }
-
-    // Adjust for whale flow
-    if (netWhaleFlow > 50000) {
-        sentiment = 'BULLISH';
-        sentimentColor = 'GREEN';
-    } else if (netWhaleFlow < -50000) {
-        sentiment = 'BEARISH';
-        sentimentColor = 'RED';
-    }
-
-    // Calculate risk level
     let riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' = 'MEDIUM';
-    if (breakdown.whales > 3 || marketData.liquidity < 10000) {
+    let summary = "Analysis pending...";
+    let actionSuggestion = "Monitor for now";
+    const keyInsights: string[] = [];
+
+    // Logic Scenarios
+    if (jeeters > diamondHands && netWhaleFlow < -5000) {
+        // SCENARIO: DUMPING
+        sentiment = 'BEARISH';
+        sentimentColor = 'RED';
         riskLevel = 'HIGH';
-    } else if (breakdown.diamondHands >= 3 && marketData.liquidity > 100000) {
+        summary = "⚠️ DISTRIBUTION DETECTED: Whales and paper hands are selling into liquidity. Momentum is fading.";
+        actionSuggestion = "Avoid / Exit positions";
+        keyInsights.push(`Net Whale Outflow: -$${Math.abs(netWhaleFlow).toFixed(0)}`);
+        keyInsights.push(`${jeeters} Jeeters selling recently`);
+
+    } else if (diamondHands >= 2 && netWhaleFlow > 10000) {
+        // SCENARIO: STRONG ACCUMULATION
+        sentiment = 'BULLISH';
+        sentimentColor = 'GREEN';
         riskLevel = 'LOW';
+        summary = "🟢 APE NOW: Strong conviction detected. Whales are accumulating and diamond hands are holding post-pump.";
+        actionSuggestion = "Enter with conviction (Spot)";
+        keyInsights.push(`Net Whale Inflow: +$${Math.abs(netWhaleFlow).toFixed(0)}`);
+        keyInsights.push(`${diamondHands} Diamond Hand wallets holding`);
+
+    } else if (whaleCount > 0 && netWhaleFlow > 0) {
+        // SCENARIO: WHALE INTEREST (EARLY)
+        sentiment = 'NEUTRAL';
+        sentimentColor = 'BLUE';
+        riskLevel = 'MEDIUM';
+        summary = "👀 WATCH: Whales are interested but volume is low. Smart money is positioning early.";
+        actionSuggestion = "Add to watchlist / Small test entry";
+        keyInsights.push("Whale accumulation detected");
+
+    } else {
+        // SCENARIO: NEUTRAL / UNDECIDED
+        summary = "⚪ NEUTRAL: No strong smart money signal detected yet. Market is undecided.";
+        sentiment = 'NEUTRAL';
+        sentimentColor = 'BLUE';
+        riskLevel = 'MEDIUM';
+        actionSuggestion = "Wait for signal";
     }
 
     // Generate insights
-    const keyInsights: string[] = [];
-
     if (breakdown.accumulators > 0) {
         keyInsights.push(`${breakdown.accumulators} top holder(s) actively accumulating`);
     }
@@ -288,34 +305,15 @@ function generateRuleBasedAnalysis(
         }
     }
 
-    // Generate summary
-    let summary = '';
-    if (sentiment === 'BULLISH') {
-        summary = `${tokenSymbol} shows accumulation patterns. Top holders are buying, not selling. `;
-        summary += breakdown.diamondHands > 0 ? 'Strong hands dominating the holder base.' : '';
-    } else if (sentiment === 'BEARISH') {
-        summary = `${tokenSymbol} shows distribution patterns. Top holders taking profits. `;
-        summary += breakdown.paperHands > 0 ? `Detected ${breakdown.paperHands} paper hands in top 10.` : '';
-    } else {
-        summary = `${tokenSymbol} shows neutral activity. Mixed signals from top holders. `;
-        summary += 'Monitor for directional breakout.';
-    }
-
-    // Generate action suggestion
-    let actionSuggestion = 'Monitor for changes';
-    if (sentiment === 'BULLISH' && riskLevel === 'LOW') {
-        actionSuggestion = 'Consider entry on dips; accumulation phase confirmed';
-    } else if (sentiment === 'BEARISH') {
-        actionSuggestion = 'Avoid new entries; wait for distribution to complete';
-    } else if (riskLevel === 'HIGH') {
-        actionSuggestion = 'High risk due to whale concentration; trade with caution';
-    }
+    // Calculate confidence based on data points
+    const bullishSignalCount = breakdown.accumulators + breakdown.diamondHands;
+    const confidence = Math.min(90, 40 + (bullishSignalCount * 10));
 
     return {
         summary,
         sentiment,
         sentimentColor,
-        confidence: Math.min(90, 40 + (bullishSignals + breakdown.diamondHands) * 10),
+        confidence,
         keyInsights,
         riskLevel,
         actionSuggestion,

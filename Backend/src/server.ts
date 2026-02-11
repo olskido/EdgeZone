@@ -7,6 +7,9 @@ import { healthRoutes } from './routes/health';
 import { tokenRoutes } from './routes/tokens';
 import { intelligenceRoutes } from './routes/intelligence';
 
+import websocket from '@fastify/websocket';
+import { redis } from './cache/redis';
+
 export const buildServer = () => {
   const app = Fastify({
     logger
@@ -14,7 +17,40 @@ export const buildServer = () => {
 
   // Enable CORS for frontend
   app.register(cors, {
-    origin: true // Allow all origins in dev (frontend runs on random ports like 5173, 5176)
+    origin: true
+  });
+
+  // Register WebSocket Plugin
+  app.register(websocket);
+
+  app.register(async function (fastify) {
+    fastify.get('/ws', { websocket: true }, (connection: any, req) => {
+      // Subscribe to Redis channel for market updates behavior
+      const redisSub = redis.duplicate();
+      redisSub.subscribe('market_updates', (err) => {
+        if (err) fastify.log.error(err);
+      });
+
+      redisSub.on('message', (channel, message) => {
+        if (channel === 'market_updates') {
+          connection.socket.send(message);
+        }
+      });
+
+      connection.socket.on('message', (message: any) => {
+        // Handle subscriptions from client if needed
+        try {
+          const data = JSON.parse(message.toString());
+          if (data.action === 'subscribe') {
+            fastify.log.info({ channels: data.channels }, 'Client subscribed');
+          }
+        } catch (e) { }
+      });
+
+      connection.socket.on('close', () => {
+        redisSub.disconnect();
+      });
+    });
   });
 
   if (env.NODE_ENV === 'development') {
@@ -38,10 +74,18 @@ export const buildServer = () => {
   return app;
 };
 
+import { birdeyeWS } from './services/websocketService';
+
 const main = async () => {
   const app = buildServer();
   const address = await app.listen({ port: env.PORT, host: '0.0.0.0' });
   app.log.info({ address, port: env.PORT }, 'server listening');
+
+  // Initialize Birdeye WebSocket
+  if (env.INGESTION_ENABLED === 'true') {
+    app.log.info('Initializing Real-time Data Stream...');
+    birdeyeWS.subscribeToToken('So11111111111111111111111111111111111111112');
+  }
 };
 
 main().catch((err) => {

@@ -45,7 +45,7 @@ async function main() {
             {},
             {
                 repeat: {
-                    every: 3 * 60 * 1000 // 3 minutes
+                    every: 5 * 60 * 1000 // 5 minutes
                 },
                 removeOnComplete: 10,
                 removeOnFail: 50

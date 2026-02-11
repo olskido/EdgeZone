@@ -11,7 +11,7 @@ const EnvSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   BIRDEYE_API_KEY: z.string().min(1),
   BIRDEYE_API_URL: z.string().url().default('https://public-api.birdeye.so'),
-  INGESTION_INTERVAL_SEC: z.coerce.number().int().positive().default(45),
+  INGESTION_INTERVAL_SEC: z.coerce.number().int().positive().default(120),
   INGESTION_MIN_LIQUIDITY: z.coerce.number().int().nonnegative().default(10000),
   INGESTION_MIN_VOLUME: z.coerce.number().int().nonnegative().default(5000),
   INGESTION_ENABLED: z.enum(['true', 'false']).default('true'),

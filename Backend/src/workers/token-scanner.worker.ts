@@ -5,9 +5,13 @@ import { fetcher } from '../services/birdeye/fetcher';
 import { filter } from '../services/birdeye/filter';
 import { normalizer } from '../services/birdeye/normalizer';
 import { ingestor } from '../services/birdeye/ingestor';
-import { env } from '../config/env';
 
 const INGESTION_ENABLED = process.env.INGESTION_ENABLED !== 'false';
+
+const MIN_LIQUIDITY = 20000;
+const MIN_VOLUME_24H = 200000;
+const MIN_MARKET_CAP = 100000;
+const MIN_AGE_HOURS = 24;
 
 export const tokenScannerWorker = new Worker(
   'token-scanner',
@@ -18,68 +22,69 @@ export const tokenScannerWorker = new Worker(
     }
 
     const t0 = Date.now();
-    logger.info({ jobId: job.id }, 'Starting token ingestion cycle');
+    logger.info({ jobId: job.id }, 'Starting strict token ingestion cycle');
 
     try {
-      // BIRDEYE COMPREHENSIVE STRATEGY: Fetch ALL tokens matching criteria
-      // Server-side filtering: Volume > $200k, Market Cap > $100k
-      logger.info('Fetching ALL tokens from Birdeye with server-side filtering...');
+      logger.info('Fetching tokens from Birdeye (broad fetch + heavy client filtering)...');
 
-      const tokens = await fetcher.fetchAllTokens({
-        minVolume24h: 200000,  // $200k volume requirement
-        minMarketCap: 100000,  // $100k market cap requirement
-        minLiquidity: 2000     // $2k liquidity minimum
+      const rawTokens = await fetcher.fetchAllTokens({
+        limit: 500,
+        sortBy: 'volume24hUSD',
+        sortType: 'desc'
       });
 
-      logger.info({
-        fetched: tokens.length
-      }, 'Fetched all matching tokens from Birdeye');
+      logger.info({ fetched: rawTokens.length }, 'Raw tokens fetched from Birdeye');
 
-      if (tokens.length === 0) {
-        logger.warn('No tokens returned from Birdeye, ending cycle');
+      if (!rawTokens || rawTokens.length === 0) {
+        logger.warn('No raw tokens from Birdeye');
         return;
       }
 
-      // 2. Additional client-side filtering (minimal, most filtering done server-side)
-      const validTokens = filter.process(tokens, {
-        minLiquidityUsd: 2000,      // Already filtered server-side, but double-check
-        minVolume24h: 200000,       // Already filtered server-side
-        minMarketCap: 100000,       // Already filtered server-side
-        minAgeHours: 0              // No age requirement
+      // Heavy client-side filtering – enforce your exact rules
+      const now = Date.now();
+      const validTokens = rawTokens.filter((token: any) => {
+        const created = token.createdAt || token.pairCreatedAt || token.lastSeenAt || token.created_at || 0;
+        const ageMs = now - new Date(created).getTime();
+        const ageHours = ageMs / (1000 * 60 * 60);
+
+        const liquidity = Number(token.liquidity ?? token.liquidityUsd ?? 0);
+        const volume = Number(token.volume24h ?? token.volume_24h_usd ?? token.volume24hUSD ?? 0);
+        const mc = Number(token.marketCap ?? token.market_cap ?? 0);
+
+        return (
+          liquidity >= MIN_LIQUIDITY &&
+          volume >= MIN_VOLUME_24H &&
+          mc >= MIN_MARKET_CAP &&
+          ageHours >= MIN_AGE_HOURS &&
+          !isNaN(ageHours)
+        );
       });
 
-      if (validTokens.length === 0) {
-        logger.warn('No tokens passed client-side filters, ending cycle');
-        return;
-      }
+      logger.info({ afterFilter: validTokens.length }, 'Tokens after strict filters');
 
-      // 3. Normalize
+      if (validTokens.length === 0) return;
+
       const normalizedTokens = normalizer.normalize(validTokens);
-
-      // 4. Ingest
       const { upsertedCount, snapshotCount, failedBatches } = await ingestor.ingest(normalizedTokens);
 
       const duration = Date.now() - t0;
       logger.info({
-        service: 'ingestion',
         duration,
-        fetched: tokens.length,
-        filtered: validTokens.length,
-        normalized: normalizedTokens.length,
+        raw: rawTokens.length,
+        valid: validTokens.length,
         upserted: upsertedCount,
         snapshots: snapshotCount,
-        failedBatches
-      }, 'Ingestion cycle completed');
+        failed: failedBatches
+      }, 'Ingestion cycle completed – only high-quality tokens stored');
 
     } catch (err: any) {
-      logger.error({ err: err.message, stack: err.stack }, 'Ingestion cycle failed');
-      throw err; // Allow BullMQ to handle retry
+      logger.error({ err: err.message, stack: err?.stack }, 'Ingestion cycle failed');
+      throw err; // BullMQ retry
     }
   },
   {
     connection: redis,
     concurrency: 1, // Prevent overlapping runs
-    lockDuration: 30000 // 30s lock
+    lockDuration: 60000 // 60s lock
   }
 );
-

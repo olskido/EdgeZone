@@ -1,0 +1,112 @@
+/* TRENDS TAB STYLES */
+.hype-score-display {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    margin: 16px 0;
+}
+
+.hype-value {
+    font-size: 48px;
+    font-weight: 900;
+    color: var(--text-primary);
+    line-height: 1;
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+}
+
+.hype-max {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-left: 4px;
+}
+
+.hype-narrative {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.03);
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.narrative-tag {
+    color: var(--accent-blue);
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-left: 4px;
+}
+
+/* SOCIAL STATS */
+.social-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.social-stats .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.social-stats .stat-value.positive {
+    color: var(--accent-green);
+}
+
+.social-stats .stat-value.negative {
+    color: var(--primary-red);
+}
+
+/* INFLUENCER LIST */
+.influencer-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.influencer-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    transition: all 0.2s ease;
+}
+
+.influencer-item:hover {
+    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.influencer-rank {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    background: rgba(0, 0, 0, 0.3);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.influencer-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.empty-state {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 8px;
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+}

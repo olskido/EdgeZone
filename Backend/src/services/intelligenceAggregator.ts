@@ -11,6 +11,8 @@ import { analyzeDevBehavior, DevProfile } from './scoring/devProfileEngine';
 import { analyzeMarketIntegrity, MarketIntegrity } from './scoring/marketIntegrityEngine';
 import { analyzeDegenIntelligence, DegenIntelligence } from './scoring/degenIntelEngine';
 import { calculateEdgeScore, EdgeScore } from './scoring/edgeScoreEngine';
+import { analyzeWallets, WalletAnalysisResult } from './analysis/walletEngine';
+import { socialEngine } from './scoring/socialEngine';
 
 export interface TokenIntelligenceDTO {
     header: {
@@ -156,6 +158,14 @@ export interface TokenIntelligenceDTO {
         bullishFactors: string[];
         recommendation: { action: string; reason: string; confidence: number; };
     };
+    // NEW: Trend Radar (Social Intelligence)
+    socialIntel: {
+        hypeScore: number;
+        narrative: string;
+        socialVolume: number;
+        acceleration: number;
+        topInfluencers: string[];
+    };
     aiInsight: { summary: string | null; cachedAt: Date | null; };
 }
 
@@ -205,7 +215,7 @@ export async function aggregateTokenIntelligence(tokenId: string): Promise<Token
         const alpha = calculateAlpha(momentum, conviction, threat);
 
         // Run ADVANCED engines in parallel
-        const [devProfile, marketIntegrity, degenIntel] = await Promise.all([
+        const [devProfile, marketIntegrity, degenIntel, walletAnalysis, socialIntel] = await Promise.all([
             analyzeDevBehavior(
                 (token as any).creatorAddress || null,
                 token.contract,
@@ -221,6 +231,20 @@ export async function aggregateTokenIntelligence(tokenId: string): Promise<Token
             analyzeDegenIntelligence(token.ticker, token.name, tokenId).catch(err => {
                 logger.warn({ err: err.message }, 'Degen intelligence analysis failed');
                 return createDefaultDegenIntel();
+            }),
+            analyzeWallets(tokenId).catch(err => {
+                logger.warn({ err: err.message }, 'Wallet analysis failed');
+                return createDefaultWalletAnalysis();
+            }),
+            socialEngine.analyzeSocials(token.ticker).catch(err => {
+                logger.warn({ err: err.message }, 'Social analysis failed');
+                return {
+                    hypeScore: 50,
+                    narrative: 'Unknown',
+                    socialVolume: 0,
+                    acceleration: 0,
+                    topInfluencers: []
+                };
             })
         ]);
 
@@ -298,32 +322,26 @@ export async function aggregateTokenIntelligence(tokenId: string): Promise<Token
                 warnings: threat.warnings
             },
             holderPatterns: {
-                patterns: holderPatterns.map(hp => ({
-                    rank: hp.rank,
-                    address: shortenAddress(hp.address),
-                    percentage: hp.percentage,
-                    pattern: hp.pattern,
-                    sentiment: hp.sentiment,
-                    recentBuys: hp.recentBuys,
-                    recentSells: hp.recentSells
+                patterns: walletAnalysis.topWallets.map((w, i) => ({
+                    rank: i + 1,
+                    address: shortenAddress(w.address),
+                    percentage: 0, // Mock for now, would be real %
+                    pattern: w.label,
+                    sentiment: w.riskScore > 80 ? 'GREEN' : w.riskScore > 50 ? 'BLUE' : 'RED',
+                    recentBuys: 0,
+                    recentSells: 0
                 })),
-                summary: aiAnalysis?.holderBreakdown || {
-                    accumulators: holderPatterns.filter(h => h.pattern === 'ACCUMULATOR').length,
-                    diamondHands: holderPatterns.filter(h => h.pattern === 'DIAMOND_HANDS').length,
-                    paperHands: holderPatterns.filter(h => h.pattern === 'PAPER_HANDS').length,
-                    whales: holderPatterns.filter(h => h.pattern === 'WHALE').length
+                summary: {
+                    accumulators: walletAnalysis.topWallets.filter(w => w.label === 'MINT_SNIPER').length,
+                    diamondHands: walletAnalysis.topWallets.filter(w => w.label === 'DIAMOND_HANDS').length,
+                    paperHands: walletAnalysis.topWallets.filter(w => w.label === 'JEETER').length,
+                    whales: walletAnalysis.topWallets.filter(w => w.label === 'WHALE').length
                 }
             },
             whaleActivity: {
-                recent: whaleActivity.slice(0, 5).map(w => ({
-                    wallet: w.wallet,
-                    type: w.type,
-                    amountUsd: w.amountUsd,
-                    timestamp: w.timestamp.toISOString(),
-                    isSmartMoney: w.isSmartMoney
-                })),
-                netFlow: netWhaleFlow,
-                alert: aiAnalysis?.whaleAlert || null
+                recent: [], // Keep empty or merge if needed
+                netFlow: walletAnalysis.smartMoneyInflow.netFlow,
+                alert: walletAnalysis.smartMoneyInflow.label === 'ACCUMULATING' ? 'Whales Accumulating' : null
             },
             aiAnalysis: aiAnalysis ? {
                 summary: aiAnalysis.summary,
@@ -423,6 +441,13 @@ export async function aggregateTokenIntelligence(tokenId: string): Promise<Token
                 bullishFactors: edgeScore.bullishFactors,
                 recommendation: edgeScore.recommendation
             },
+            socialIntel: {
+                hypeScore: socialIntel.hypeScore,
+                narrative: socialIntel.narrative,
+                socialVolume: socialIntel.socialVolume,
+                acceleration: socialIntel.acceleration,
+                topInfluencers: socialIntel.topInfluencers
+            },
             aiInsight: { summary: token.aiSummary, cachedAt: token.aiSummaryUpdated }
         };
 
@@ -485,5 +510,13 @@ function createDefaultDegenIntel(): DegenIntelligence {
         sentiment: { overall: 'NEUTRAL', score: 50, keyInsight: 'Analysis unavailable', suggestedAction: 'Proceed with caution', sources: [] },
         signals: ['Degen intel unavailable'],
         color: 'YELLOW'
+    };
+}
+
+function createDefaultWalletAnalysis(): WalletAnalysisResult {
+    return {
+        topWallets: [],
+        concentration: { top10: 0, top20: 0, score: 0 },
+        smartMoneyInflow: { score: 0, netFlow: 0, label: 'NEUTRAL' }
     };
 }

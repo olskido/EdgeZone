@@ -16,32 +16,38 @@ const useTokenStore = create((set, get) => ({
     limit: 20,
     trendFilter: 'trending',
 
-    setTokens: (tokens) => set({ tokens }),
+    minLiquidity: 20000,
+    minVolume: 200000,
+    minMarketCap: 100000,
 
-    // Universal fetch function using current state
+    setTokens: (tokens) => set({ tokens }),
+    setFilters: (filters) => set({ ...filters, currentPage: 1 }),
+
     fetchTokens: async (overrides = {}) => {
         const state = get();
         const params = {
-            page: overrides.page || state.currentPage,
-            limit: overrides.limit || state.limit,
-            sort: overrides.sort || state.currentSort
+            page: overrides.page ?? state.currentPage,
+            limit: overrides.limit ?? state.limit,
+            sort: overrides.sort ?? state.currentSort,
+            minLiquidity: state.minLiquidity,
+            minVolume: state.minVolume,
+            minMarketCap: state.minMarketCap,
         };
 
         set({ loading: true, error: null });
 
         try {
             const data = await api.fetchTokens(params);
-
             set({
                 tokens: data.tokens || [],
                 currentPage: data.page || params.page,
                 totalPages: data.totalPages || 1,
                 loading: false,
-                currentSort: params.sort
+                currentSort: params.sort,
             });
         } catch (err) {
             console.error('Fetch failed:', err);
-            set({ loading: false, error: err.message });
+            set({ loading: false, error: err.message || 'Failed to load tokens' });
         }
     },
 
@@ -64,7 +70,8 @@ const useTokenStore = create((set, get) => ({
     selectToken: async (tokenOrSymbol) => {
         const seq = ++selectTokenSeq;
 
-        const backendEnabled = (import.meta.env.VITE_BACKEND_ENABLED ?? 'false') === 'true';
+        // Check if backend is enabled (default to true if not specified)
+        const backendEnabled = (import.meta.env.VITE_BACKEND_ENABLED ?? 'true') === 'true';
 
         const pickId = (t) => t?.id || t?.tokenId || t?.tokenIntelligence?.id || null;
 
@@ -169,27 +176,19 @@ const useTokenStore = create((set, get) => ({
     setSort: (sort) => get().fetchTokens({ sort, page: 1 }),
     setTrendFilter: (filter) => set({ trendFilter: filter, currentPage: 1 }),
 
-    // WebSocket update handler
     updateToken: (updatedData) => set((state) => {
-        const idx = state.tokens.findIndex(t => t.symbol === updatedData.symbol);
-        let newTokens = state.tokens;
+        const newTokens = state.tokens.map(t =>
+            (t.id === updatedData.id || t.contract === updatedData.address)
+                ? { ...t, ...updatedData }
+                : t
+        );
 
-        if (idx !== -1) {
-            newTokens = [...state.tokens];
-            newTokens[idx] = { ...newTokens[idx], ...updatedData };
-        }
-
-        const newSelected = state.selectedToken &&
-            state.selectedToken.symbol === updatedData.symbol
-            ? {
-                ...state.selectedToken,
-                ...updatedData,
-                tokenIntelligence: updatedData.tokenIntelligence || state.selectedToken.tokenIntelligence
-            }
+        const newSelected = state.selectedToken?.id === updatedData.id
+            ? { ...state.selectedToken, ...updatedData }
             : state.selectedToken;
 
         return { tokens: newTokens, selectedToken: newSelected };
-    })
+    }),
 }));
 
 export default useTokenStore;

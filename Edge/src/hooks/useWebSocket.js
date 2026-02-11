@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import useTokenStore from '../store/useTokenStore';
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:4000';
+const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:4000/ws';
 const WS_ENABLED = (import.meta.env.VITE_WS_ENABLED ?? 'false') === 'true';
 const BACKEND_ENABLED = (import.meta.env.VITE_BACKEND_ENABLED ?? 'false') === 'true';
 
@@ -32,6 +32,23 @@ export const useWebSocket = () => {
 
                 if (message.type === 'TOKEN_UPDATE') {
                     updateToken(message.data);
+                }
+
+                // Handle Real-time Price Updates
+                if (message.type === 'PRICE') {
+                    // Optimistically update token price in store
+                    // This requires a new action in useTokenStore or just updating the finding token
+                    // For now, let's assume updateToken handles partial updates
+                    updateToken({
+                        address: message.data.address,
+                        price: message.data.price,
+                        priceChange24h: message.data.priceChange24h // if available
+                    });
+                }
+
+                if (message.type === 'TX') {
+                    console.log(`⚡ TX: ${message.data.type.toUpperCase()} $${message.data.amount} @ $${message.data.price}`);
+                    // Could trigger a toast or ephemeral UI update here
                 }
 
                 if (message.type === 'WHALE_ALERT') {

@@ -33,16 +33,21 @@ const formatPercent = (value) => {
 
 // Score color logic based on the specified formulas
 const getMomentumColor = (score) => {
-    // Green: >15%, Red: <-10%
-    if (score >= 15) return 'score-green';
-    if (score >= 5) return 'score-blue';
-    if (score >= -5) return 'score-neutral';
-    if (score >= -10) return 'score-yellow';
-    return 'score-red';
+    // Green: >15% (High Velocity)
+    // Blue: 5-15% (Steady)
+    // Yellow: -5% to 5% (Sideways/Wait)
+    // Red: <-5% (Distribution/Avoid)
+    if (score >= 15) return 'score-green';   // Green
+    if (score >= 5) return 'score-blue';    // Blue
+    if (score >= -5) return 'score-yellow'; // Yellow (was neutral)
+    return 'score-red';                     // Red
 };
 
 const getConvictionColor = (ratio) => {
-    // Green: ≥15%, Red: <3%
+    // Green: ≥15% (Deep Liquidity)
+    // Blue: 8-14% (Solid)
+    // Yellow: 3-8% (Thin/Caution)
+    // Red: <3% (Rug Risk)
     if (ratio >= 15) return 'score-green';
     if (ratio >= 8) return 'score-blue';
     if (ratio >= 3) return 'score-yellow';
@@ -51,9 +56,9 @@ const getConvictionColor = (ratio) => {
 
 const getThreatColor = (level) => {
     // Inverted - LOW is good, HIGH is bad
-    if (level === 'LOW') return 'threat-clean';
-    if (level === 'MODERATE') return 'threat-mod';
-    return 'threat-high';
+    if (level === 'LOW') return 'threat-clean';  // Green
+    if (level === 'MODERATE') return 'threat-mod'; // Yellow
+    return 'threat-high'; // Red
 };
 
 const TokenTable = () => {
@@ -132,7 +137,7 @@ const TokenTable = () => {
                     const threatScore = token.threatScore ?? 100;
 
                     return (
-                        <div key={token.id} className={`table-row-group ${isSelected ? 'selected' : ''}`}>
+                        <div key={`${token.id}-${token.updatedAt || 'static'}`} className={`table-row-group ${isSelected ? 'selected' : ''}`}>
                             <div
                                 className="table-row-primary"
                                 onClick={() => selectToken(token)}

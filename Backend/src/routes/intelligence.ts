@@ -3,6 +3,8 @@ import { aggregateTokenIntelligence } from '../services/intelligenceAggregator';
 import { prisma } from '../models/prisma';
 import { logger } from '../utils/logger';
 import { redis } from '../cache/redis';
+import { z } from 'zod'; // Added import for zod
+import { socialEngine } from '../services/scoring/socialEngine'; // Added import for socialEngine
 
 // Helper: timeout wrapper
 const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
@@ -26,7 +28,7 @@ export async function intelligenceRoutes(app: FastifyInstance) {
 
         try {
             // Try cached result first (50ms check)
-            const cacheKey = `intelligence:v3:${id}`;
+            const cacheKey = `intelligence: v3:${id} `;
             const cached = await redis.get(cacheKey).catch(() => null);
             if (cached) {
                 logger.info({ tokenId: id, cached: true, duration: Date.now() - startTime }, '⚡ Intelligence from cache');
@@ -103,13 +105,22 @@ export async function intelligenceRoutes(app: FastifyInstance) {
             return reply.code(500).send({ error: 'Failed to aggregate intelligence' });
         }
     });
+
+    /**
+     * GET /trends
+     * Returns global trending narratives
+     */
+    app.get('/trends', async (request, reply) => {
+        const trends = await socialEngine.getGlobalTrends();
+        return trends;
+    });
 }
 
 function formatAge(date: Date): string {
     const diffMs = Date.now() - date.getTime();
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffHours / 24);
-    if (diffDays > 0) return `${diffDays}d`;
-    if (diffHours > 0) return `${diffHours}h`;
+    if (diffDays > 0) return `${diffDays} d`;
+    if (diffHours > 0) return `${diffHours} h`;
     return '<1h';
 }
