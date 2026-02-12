@@ -1,95 +1,107 @@
+// src/App.jsx
 import React, { useCallback, useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
-import Header from './components/Header/Header';
-import TopStats from './components/TopStats/TopStats';
-import HypeTracker from './components/HypeTracker/HypeTracker';
-import TokenTable from './components/TokenTable/TokenTable';
-import FilterBar from './components/FilterBar/FilterBar';
-import Sidebar from './components/Sidebar/Sidebar';
-import EdgeMemory from './components/EdgeMemory/EdgeMemory';
-import EdgeZoneHistory from './components/EdgeZoneHistory/EdgeZoneHistory';
-import Footer from './components/Footer/Footer';
 import useTokenStore from './store/useTokenStore';
 import { api } from './services/api';
-import { useWebSocket } from './hooks/useWebSocket';
 import './App.css';
 
-// Initialize Query Client
-const queryClient = new QueryClient();
+// Components
+import Header from './components/Header/Header';
+import TokenTable from './components/TokenTable/TokenTable';
+import Sidebar from './components/Sidebar/Sidebar';
+
+import Footer from './components/Footer/Footer';
+
+// ... (imports remain)
+
+// Query client with longer timeouts for multi-search
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 45000, // 45 seconds
+      refetchInterval: 60000, // 1 minute (slower to avoid rate limits)
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
+      retry: 1,
+      retryDelay: 2000,
+    },
+  },
+});
 
 function EdgeZoneApp() {
   const qc = useQueryClient();
-  const {
-    setTokens, setLoading, setError,
-    currentPage, trendFilter, searchQuery, setSearchQuery
-  } = useTokenStore();
 
   const [activePage, setActivePage] = useState('terminal');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const onNavigate = useCallback((page) => {
     setActivePage(page);
-    try {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch {
-      window.scrollTo(0, 0);
-    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
-  const backendEnabled = (import.meta.env.VITE_BACKEND_ENABLED ?? 'false') === 'true';
-
-  // WebSocket Subscription
-  useWebSocket();
-
-  // React Query for fetching tokens
-  const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['tokens', currentPage, trendFilter],
-    queryFn: () => api.fetchTokens({ page: currentPage, sort: trendFilter, limit: 100 }),
-    enabled: backendEnabled,
-    staleTime: 30000,
-    refetchInterval: backendEnabled ? 60000 : false,
-    retry: (failureCount, err) => {
-      if (err?.response?.status === 503 && failureCount < 3) {
-        return true;
-      }
-      return failureCount < 1;
-    },
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
+  // Fetch tokens with React Query
+  const { data, isLoading, isError, error, refetch, dataUpdatedAt, isFetching } = useQuery({
+    queryKey: ['tokens'],
+    queryFn: () => api.fetchTokens({ limit: 200 }),
+    staleTime: 45000,
+    refetchInterval: 60000,
+    retry: 1,
   });
 
-  // Sync React Query data to Zustand Store
+  // Sync to Zustand
   useEffect(() => {
-    if (!backendEnabled) {
-      console.warn('⚠️ Backend is disabled! Check VITE_BACKEND_ENABLED in .env');
+    if (isLoading || isFetching) {
+      useTokenStore.setState({ loading: true, error: null });
       return;
     }
-    if (isLoading) setLoading(true);
-    if (isError) setError(error?.message || 'Failed to load tokens');
+
+    if (isError) {
+      useTokenStore.setState({
+        loading: false,
+        error: error?.message || 'Failed to fetch trending tokens',
+      });
+      console.error('❌ Fetch error:', error);
+      return;
+    }
 
     if (data) {
-      setLoading(false);
-      const tokens = Array.isArray(data) ? data : data.tokens || [];
-      console.log('✅ Setting tokens:', tokens.length, 'tokens');
-      setTokens(tokens);
+      const tokenList = Array.isArray(data) ? data : data.tokens || [];
+
+      useTokenStore.setState({
+        tokens: tokenList,
+        loading: false,
+        error: null,
+        lastFetchTime: data.lastUpdate || new Date().toISOString(),
+      });
+
+      const time = new Date().toLocaleTimeString();
+      console.log(`🚀 EdgeZone: ${tokenList.length} tokens loaded at ${time}`);
     }
-  }, [backendEnabled, data, isLoading, isError, error, setTokens, setLoading, setError]);
+  }, [data, isLoading, isError, error, isFetching]);
 
-  // Handler for header search
+  // Log updates
+  useEffect(() => {
+    if (dataUpdatedAt && !isLoading) {
+      const updateTime = new Date(dataUpdatedAt).toLocaleTimeString();
+      console.log(`🔄 Data refreshed at ${updateTime}`);
+    }
+  }, [dataUpdatedAt, isLoading]);
+
   const handleSearch = useCallback((query) => {
-    setSearchQuery(query);
-  }, [setSearchQuery]);
+    useTokenStore.setState({ searchQuery: query });
+  }, []);
 
-  // Handler for manual refresh
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
+    console.log('🔄 Manual refresh started...');
     try {
-      // Invalidate all queries to force fresh data
       await qc.invalidateQueries({ queryKey: ['tokens'] });
       await refetch();
+      console.log('✅ Manual refresh complete');
     } catch (err) {
-      console.error('Refresh failed:', err);
+      console.error('❌ Refresh failed:', err);
     } finally {
-      setTimeout(() => setIsRefreshing(false), 500);
+      setTimeout(() => setIsRefreshing(false), 1000);
     }
   }, [qc, refetch]);
 
@@ -99,29 +111,27 @@ function EdgeZoneApp() {
         activePage={activePage}
         onNavigate={onNavigate}
         onSearch={handleSearch}
-        searchQuery={searchQuery}
+        searchQuery={useTokenStore(s => s.searchQuery)}
         onRefresh={handleRefresh}
-        isRefreshing={isRefreshing || isLoading}
+        isRefreshing={isRefreshing || isFetching}
       />
+
       <div className="container">
         {activePage === 'edge-memory' ? (
           <>
-            <EdgeMemory />
-            <EdgeZoneHistory />
+            <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
+              <h2>🧠 Edge Memory</h2>
+              <p>Module under construction</p>
+            </div>
           </>
         ) : (
           <>
-            <TopStats />
-            <HypeTracker />
-
             <div className="content-wrapper">
               <div className="main-panel">
-                <FilterBar />
                 {isError ? (
-                  <div className="error-panel">
-                    <span>⚠️ Failed to load tokens</span>
-                    <button onClick={handleRefresh}>Retry</button>
-                  </div>
+                  <ErrorPanel error={error} onRetry={handleRefresh} />
+                ) : isLoading ? (
+                  <LoadingPanel />
                 ) : (
                   <TokenTable />
                 )}
@@ -134,6 +144,103 @@ function EdgeZoneApp() {
 
       <Footer />
     </>
+  );
+}
+
+// Loading indicator
+function LoadingPanel() {
+  return (
+    <div style={{
+      padding: '4rem 2rem',
+      textAlign: 'center',
+      background: 'rgba(59, 130, 246, 0.1)',
+      border: '1px solid rgba(59, 130, 246, 0.3)',
+      borderRadius: '12px',
+      margin: '2rem 0',
+    }}>
+      <div style={{ fontSize: '4rem', marginBottom: '1rem', animation: 'pulse 2s infinite' }}>
+        🔍
+      </div>
+      <h2 style={{
+        color: '#3b82f6',
+        marginBottom: '1rem',
+        fontSize: '1.5rem',
+        fontWeight: '600',
+      }}>
+        Scanning Solana Markets...
+      </h2>
+      <p style={{
+        color: '#94a3b8',
+        fontSize: '1rem',
+      }}>
+        Searching trending tokens across DexScreener
+      </p>
+      <div style={{
+        marginTop: '1.5rem',
+        color: '#64748b',
+        fontSize: '0.875rem',
+      }}>
+        This may take 5-10 seconds on first load
+      </div>
+    </div>
+  );
+}
+
+// Error display
+function ErrorPanel({ error, onRetry }) {
+  return (
+    <div style={{
+      padding: '3rem 2rem',
+      textAlign: 'center',
+      background: 'rgba(220, 38, 38, 0.1)',
+      border: '1px solid rgba(220, 38, 38, 0.3)',
+      borderRadius: '12px',
+      margin: '2rem 0',
+    }}>
+      <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>⚠️</div>
+      <h2 style={{
+        color: '#ef4444',
+        marginBottom: '1rem',
+        fontSize: '1.5rem',
+        fontWeight: '600',
+      }}>
+        Connection Error
+      </h2>
+      <p style={{
+        color: '#cbd5e1',
+        marginBottom: '2rem',
+        fontSize: '1rem',
+        maxWidth: '500px',
+        margin: '0 auto 2rem',
+      }}>
+        {error?.message || 'Unable to fetch market data from DexScreener'}
+      </p>
+      <button
+        onClick={onRetry}
+        style={{
+          padding: '0.875rem 2rem',
+          background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+          color: 'white',
+          border: 'none',
+          borderRadius: '8px',
+          cursor: 'pointer',
+          fontSize: '1rem',
+          fontWeight: '600',
+          transition: 'transform 0.2s',
+        }}
+        onMouseEnter={(e) => e.target.style.transform = 'scale(1.05)'}
+        onMouseLeave={(e) => e.target.style.transform = 'scale(1)'}
+      >
+        🔄 Retry Connection
+      </button>
+      <div style={{
+        marginTop: '1.5rem',
+        color: '#64748b',
+        fontSize: '0.875rem',
+      }}>
+        Check browser console (F12) for details
+      </div>
+    </div>
   );
 }
 

@@ -31,34 +31,26 @@ const formatPercent = (value) => {
     return `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`;
 };
 
-// Score color logic based on the specified formulas
-const getMomentumColor = (score) => {
-    // Green: >15% (High Velocity)
-    // Blue: 5-15% (Steady)
-    // Yellow: -5% to 5% (Sideways/Wait)
-    // Red: <-5% (Distribution/Avoid)
-    if (score >= 15) return 'score-green';   // Green
-    if (score >= 5) return 'score-blue';    // Blue
-    if (score >= -5) return 'score-yellow'; // Yellow (was neutral)
-    return 'score-red';                     // Red
+const formatAge = (dateString) => {
+    if (!dateString) return '-';
+    const created = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - created;
+    const diffHours = diffMs / (1000 * 60 * 60);
+
+    if (diffHours < 24) return `${Math.floor(diffHours)}h`;
+    const diffDays = diffHours / 24;
+    if (diffDays < 30) return `${Math.floor(diffDays)}d`;
+    if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo`;
+    return `${Math.floor(diffDays / 365)}y`;
 };
 
-const getConvictionColor = (ratio) => {
-    // Green: ≥15% (Deep Liquidity)
-    // Blue: 8-14% (Solid)
-    // Yellow: 3-8% (Thin/Caution)
-    // Red: <3% (Rug Risk)
-    if (ratio >= 15) return 'score-green';
-    if (ratio >= 8) return 'score-blue';
-    if (ratio >= 3) return 'score-yellow';
-    return 'score-red';
-};
-
-const getThreatColor = (level) => {
-    // Inverted - LOW is good, HIGH is bad
-    if (level === 'LOW') return 'threat-clean';  // Green
-    if (level === 'MODERATE') return 'threat-mod'; // Yellow
-    return 'threat-high'; // Red
+// Threat Emoji Logic
+const getThreatEmoji = (level) => {
+    if (level === 'HIGH') return '🔴';
+    if (level === 'MODERATE') return '🟡';
+    if (level === 'LOW') return '🔵'; // As requested
+    return '🟢'; // Default safe
 };
 
 const TokenTable = () => {
@@ -107,10 +99,14 @@ const TokenTable = () => {
     return (
         <div className="table-container">
             {/* Header */}
-            <div className="table-header-row">
+            {/* Header */}
+            <div className="table-header-row user-layout">
                 <div className="col-token">Token</div>
                 <div className="col-metric clickable" onClick={() => handleSort('price')}>
                     Price {renderSortArrow('price')}
+                </div>
+                <div className="col-metric clickable" onClick={() => handleSort('marketCap')}>
+                    Market Cap {renderSortArrow('marketCap')}
                 </div>
                 <div className="col-metric clickable" onClick={() => handleSort('liquidity')}>
                     Liquidity {renderSortArrow('liquidity')}
@@ -118,9 +114,8 @@ const TokenTable = () => {
                 <div className="col-metric clickable" onClick={() => handleSort('volume')}>
                     24h Vol {renderSortArrow('volume')}
                 </div>
-                <div className="col-score">Momentum</div>
-                <div className="col-score">Conviction</div>
-                <div className="col-threat">Threat</div>
+                <div className="col-metric">Age</div>
+                <div className="col-threat-icon">Sentiment</div>
             </div>
 
             {/* Body */}
@@ -128,18 +123,12 @@ const TokenTable = () => {
                 {filteredTokens.map((token) => {
                     const isSelected = selectedToken?.id === token.id;
                     const isExpanded = expandedRowId === token.id;
-
-                    // Get scores with fallbacks
-                    const momentumScore = token.momentumScore ?? 0;
-                    const convictionRatio = token.convictionRatio ?? 0;
-                    const convictionScore = token.convictionScore ?? 0;
                     const threatLevel = token.threatLevel || 'LOW';
-                    const threatScore = token.threatScore ?? 100;
 
                     return (
                         <div key={`${token.id}-${token.updatedAt || 'static'}`} className={`table-row-group ${isSelected ? 'selected' : ''}`}>
                             <div
-                                className="table-row-primary"
+                                className="table-row-primary user-layout"
                                 onClick={() => selectToken(token)}
                             >
                                 {/* Token Identity */}
@@ -155,30 +144,47 @@ const TokenTable = () => {
 
                                 {/* Metrics */}
                                 <div className="col-metric strong">{formatUsd(token.price)}</div>
+                                <div className="col-metric">{formatVol(token.marketCap)}</div>
                                 <div className="col-metric">{formatVol(token.liquidity)}</div>
                                 <div className="col-metric">{formatVol(token.volume24h)}</div>
+                                <div className="col-metric">{formatAge(token.created_at)}</div>
 
-                                {/* Momentum Score: (PriceChange + VolumeChange) / 2 */}
-                                <div className="col-score">
-                                    <div className={`score-pill ${getMomentumColor(momentumScore)}`}>
-                                        {formatPercent(momentumScore)}
-                                    </div>
-                                </div>
+                                {/* Trade Sentiment Bar */}
+                                <div className="col-threat-icon">
+                                    {(() => {
+                                        const buys = token.buys24h || 0;
+                                        const sells = token.sells24h || 0;
+                                        const total = buys + sells;
+                                        const sentiment = total > 0 ? (buys / total) * 100 : 50;
 
-                                {/* Conviction Score: (Liquidity / MarketCap) × 100 */}
-                                <div className="col-score">
-                                    <div className={`score-pill ${getConvictionColor(convictionRatio)}`}>
-                                        {convictionRatio.toFixed(1)}%
-                                    </div>
-                                </div>
+                                        // Color logic: <40 red, >60 green, else yellow/neutral
+                                        let barColor = '#3b82f6'; // Default blue (neutral)
+                                        if (sentiment > 60) barColor = '#22c55e'; // Green
+                                        else if (sentiment < 40) barColor = '#ef4444'; // Red
+                                        else barColor = '#f59e0b'; // Yellow
 
-                                {/* Threat Score: 100 - penalties */}
-                                <div className="col-threat">
-                                    <span className={getThreatColor(threatLevel)}>
-                                        {threatLevel === 'LOW' && '✓'}
-                                        {threatLevel === 'MODERATE' && '⚠'}
-                                        {threatLevel === 'HIGH' && '⛔'}
-                                    </span>
+                                        return (
+                                            <div className="sentiment-container" style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                <div style={{
+                                                    height: '6px',
+                                                    width: '100%',
+                                                    background: '#334155',
+                                                    borderRadius: '4px',
+                                                    overflow: 'hidden'
+                                                }}>
+                                                    <div style={{
+                                                        height: '100%',
+                                                        width: `${sentiment}%`,
+                                                        background: barColor,
+                                                        transition: 'width 0.3s'
+                                                    }} />
+                                                </div>
+                                                <span style={{ fontSize: '10px', color: '#94a3b8', textAlign: 'center' }}>
+                                                    {sentiment.toFixed(0)}% Buy
+                                                </span>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
 
                                 {/* Expand Toggle */}
@@ -187,14 +193,10 @@ const TokenTable = () => {
                                 </div>
                             </div>
 
-                            {/* Expanded Details */}
+                            {/* Expanded Details - Keeping extra info here */}
                             {isExpanded && (
                                 <div className="table-row-details">
                                     <div className="detail-grid">
-                                        <div className="detail-item">
-                                            <label>Market Cap</label>
-                                            <span>{formatVol(token.marketCap)}</span>
-                                        </div>
                                         <div className="detail-item">
                                             <label>Price Δ24h</label>
                                             <span className={token.priceChange24h >= 0 ? 'positive' : 'negative'}>
@@ -208,8 +210,8 @@ const TokenTable = () => {
                                             </span>
                                         </div>
                                         <div className="detail-item">
-                                            <label>Safety Score</label>
-                                            <span>{threatScore}/100</span>
+                                            <label>Momentum</label>
+                                            <span>{token.momentumScore || 0}</span>
                                         </div>
                                         <div className="detail-item">
                                             <label>Contract</label>
@@ -217,7 +219,7 @@ const TokenTable = () => {
                                         </div>
                                         <div className="detail-item">
                                             <label>Liq/MC Ratio</label>
-                                            <span>{convictionRatio.toFixed(2)}%</span>
+                                            <span>{token.convictionRatio ? token.convictionRatio.toFixed(2) : '0'}%</span>
                                         </div>
                                     </div>
                                 </div>

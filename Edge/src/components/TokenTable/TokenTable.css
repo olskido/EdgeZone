@@ -43,6 +43,28 @@
     background: #18181b;
 }
 
+.table-header-row.user-layout,
+.table-row-primary.user-layout {
+    display: grid;
+    /* Token | Price | Liq | Vol | MC | Age | Threat | Expand */
+    grid-template-columns: 2.5fr 1.2fr 1.2fr 1.2fr 1.2fr 0.8fr 0.8fr 0.5fr;
+    gap: 1rem;
+    padding: 1rem 1.5rem;
+    align-items: center;
+}
+
+.col-threat-icon {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.2rem;
+}
+
+.threat-emoji {
+    font-size: 1.4rem;
+    line-height: 1;
+}
+
 .table-row-primary {
     display: grid;
     grid-template-columns: 2fr 1fr 1fr 1fr 1.2fr 1fr 0.8fr 40px;

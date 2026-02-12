@@ -1,75 +1,135 @@
-import React, { useState, useEffect } from 'react';
+// src/components/Sidebar/Sidebar.jsx - AI-Powered Intelligence Panel
+import React, { useState, useEffect, useRef } from 'react';
 import useTokenStore from '../../store/useTokenStore';
 import './Sidebar.css';
-import './trends.css';
-
-// Color mapping for tiers
-const getScoreColor = (score) => {
-    if (score >= 76) return '#22c55e'; // GREEN
-    if (score >= 56) return '#3b82f6'; // BLUE
-    if (score >= 31) return '#f59e0b'; // YELLOW
-    return '#ef4444'; // RED
-};
-
-const getEdgeLevelColor = (level) => {
-    const colors = {
-        'ALPHA': '#22c55e', // Green
-        'EDGE': '#3b82f6',  // Blue
-        'NEUTRAL': '#f59e0b', // Yellow
-        'RISKY': '#ef4444',   // Red (Avoid/Danger)
-        'AVOID': '#ef4444'    // Red
-    };
-    return colors[level] || '#71717a';
-};
-
-const getPatternIcon = (pattern) => {
-    const icons = {
-        'ACCUMULATOR': '📈', 'DIAMOND_HANDS': '💎', 'PAPER_HANDS': '🧻',
-        'SELLS_AFTER_2X': '💰', 'WHALE': '🐋', 'NEUTRAL': '⚪'
-    };
-    return icons[pattern] || '⚪';
-};
-
-const getDevLabelColor = (label) => {
-    const colors = {
-        'ALPHA_DEV': '#22c55e', 'TRUSTED': '#3b82f6', 'UNKNOWN': '#71717a',
-        'SUSPICIOUS': '#f97316', 'SERIAL_RUGGER': '#ef4444'
-    };
-    return colors[label] || '#71717a';
-};
+import { api } from '../../services/api';
 
 const Sidebar = () => {
     const { selectedToken, loadingToken } = useTokenStore();
     const [intelligence, setIntelligence] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [aiLoading, setAiLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [activeTab, setActiveTab] = useState('overview');
+    const [lastUpdate, setLastUpdate] = useState(null);
+    const [confidence, setConfidence] = useState(100);
+    const intervalRef = useRef(null);
+    const debounceRef = useRef(null);
 
+    // Fetch intelligence when token selected
     useEffect(() => {
-        if (!selectedToken) { setIntelligence(null); return; }
-        const fetchIntelligence = async () => {
+        if (!selectedToken) {
+            setIntelligence(null);
+            return;
+        }
+
+        const fetchSidebarData = async () => {
             setLoading(true);
             setError(null);
+            setAiLoading(false); // Reset AI state
+
             try {
-                const tokenId = selectedToken.id || selectedToken.contract;
-                const response = await fetch(`http://localhost:4000/token/${tokenId}/intelligence`);
-                if (!response.ok) throw new Error(`API error: ${response.status}`);
-                const data = await response.json();
-                setIntelligence(data);
+                // 1. Immediate: Get Real Data (Moralis) via API
+                const tokenId = selectedToken.contract || selectedToken.id;
+                const baseData = await api.getTokenDetails(tokenId);
+
+                // Merge fetched data with existing store data (to preserve MC/Liq if API misses it)
+                const mergedIntelligence = {
+                    ...baseData,
+                    header: {
+                        ...baseData.header,
+                        baseToken: {
+                            ...baseData.header.baseToken,
+                            name: baseData.header.baseToken.name !== 'Unknown' ? baseData.header.baseToken.name : selectedToken.name,
+                            symbol: baseData.header.baseToken.symbol !== '???' ? baseData.header.baseToken.symbol : selectedToken.symbol,
+                        }
+                    },
+                    coreMetrics: {
+                        ...selectedToken, // Start with store data (has MC, Liq, Vol)
+                        ...baseData.coreMetrics, // Overlay with whatever the API found (e.g. fresh Price)
+                    }
+                };
+
+                setIntelligence(mergedIntelligence);
+                setLastUpdate(Date.now());
+                setConfidence(100);
+
+                // 2. Scheduled: AI Analysis (Debounced 2s)
+                if (debounceRef.current) clearTimeout(debounceRef.current);
+
+                debounceRef.current = setTimeout(async () => {
+                    setAiLoading(true);
+                    try {
+                        // Prepare payload using the BEST data we have
+                        const aiPayload = {
+                            name: mergedIntelligence.header.baseToken.name,
+                            symbol: mergedIntelligence.header.baseToken.symbol,
+                            marketCap: mergedIntelligence.coreMetrics.marketCap,
+                            liquidity: mergedIntelligence.coreMetrics.liquidity,
+                            volume: mergedIntelligence.coreMetrics.volume24h,
+                            age: mergedIntelligence.coreMetrics.age,
+                            topHolder: mergedIntelligence.topHolders[0]?.percent || 0
+                        };
+
+                        const aiResult = await api.analyzeToken(aiPayload);
+
+                        setIntelligence(prev => ({
+                            ...prev,
+                            threatSignal: {
+                                level: aiResult.threat,
+                                probability: aiResult.confidence,
+                                label: aiResult.summary
+                            },
+                            overallAssessment: {
+                                summary: aiResult.summary,
+                                action: getActionFromThreat(aiResult.threat)
+                            },
+                            aiExplanation: aiResult.aiExplanation || [], // Use backend provided explanations if any
+                            detailedReasoning: aiResult.detailedReasoning || []
+                        }));
+                        setConfidence(aiResult.confidence);
+                    } catch (aiErr) {
+                        console.warn("AI Analysis skipped:", aiErr);
+                    } finally {
+                        setAiLoading(false);
+                    }
+                }, 2000); // 2 Second Debounce
+
             } catch (err) {
-                setError(err.message);
+                console.error('Sidebar Data Failed:', err);
+                setError("Failed to load token data");
             } finally {
                 setLoading(false);
             }
         };
-        fetchIntelligence();
+
+        fetchSidebarData();
+
+        return () => {
+            if (debounceRef.current) clearTimeout(debounceRef.current);
+        };
     }, [selectedToken]);
+
+    // Confidence decay over time (decreases 1% every 3 seconds)
+    useEffect(() => {
+        if (!lastUpdate) return;
+
+        intervalRef.current = setInterval(() => {
+            setConfidence((prev) => {
+                const timeSince = (Date.now() - lastUpdate) / 1000;
+                const decay = Math.floor(timeSince / 3);
+                return Math.max(0, 100 - decay);
+            });
+        }, 1000);
+
+        return () => clearInterval(intervalRef.current);
+    }, [lastUpdate]);
 
     if (!selectedToken) {
         return (
             <div className="sidebar">
                 <div className="sidebar-empty">
-                    <div>Select a token to view<br />Intelligence Analysis</div>
+                    <div className="empty-icon">🎯</div>
+                    <div>Select a token to view<br />AI Intelligence Analysis</div>
                 </div>
             </div>
         );
@@ -78,10 +138,13 @@ const Sidebar = () => {
     if (loading || loadingToken) {
         return (
             <div className="sidebar">
-                <div className="sidebar-header">
+                <div className="sidebar-header compact">
                     <div className="skeleton skeleton-title"></div>
                 </div>
-                <div className="skeleton skeleton-box"></div>
+                <div className="sidebar-loading">
+                    <div className="loading-spinner">🔄</div>
+                    <div>Fetching on-chain data...</div>
+                </div>
             </div>
         );
     }
@@ -90,336 +153,410 @@ const Sidebar = () => {
         return (
             <div className="sidebar">
                 <div className="sidebar-empty error">
-                    <div>Failed to load intelligence<br />{error}</div>
+                    <div className="error-icon">⚠️</div>
+                    <div>Failed to load intelligence<br />{error || 'Unknown error'}</div>
                 </div>
             </div>
         );
     }
 
-    const formatNumber = (num) => {
+    const formatNumber = (num, digits = 2) => {
         if (!num && num !== 0) return '$0';
-        if (num >= 1e9) return `$${(num / 1e9).toFixed(2)}B`;
-        if (num >= 1e6) return `$${(num / 1e6).toFixed(2)}M`;
-        if (num >= 1e3) return `$${(num / 1e3).toFixed(2)}K`;
-        return `$${num.toFixed?.(2) || '0'}`;
+        if (num >= 1e9) return `$${(num / 1e9).toFixed(digits)}B`;
+        if (num >= 1e6) return `$${(num / 1e6).toFixed(digits)}M`;
+        if (num >= 1e3) return `$${(num / 1e3).toFixed(digits)}K`;
+        return `$${num.toFixed?.(digits) || '0'}`;
+    };
+
+    const formatPercent = (val) => {
+        const n = parseFloat(val || 0);
+        return `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
     };
 
     const d = intelligence;
-    const edgeColor = getEdgeLevelColor(d.edgeScore?.level);
+    // Default signal if AI is still loading
+    const defaultSignal = { level: 'Analyzing...', probability: 50, label: 'AI Processing...' };
+    const signal = d.threatSignal || defaultSignal;
+    const threatColor = d.threatSignal ? getThreatColor(signal.level) : '#94a3b8'; // Grey if analyzing
+    const confidenceColor = getConfidenceColor(confidence);
+
+    const handleRefresh = async () => {
+        if (!selectedToken) return;
+        const tokenId = selectedToken.contract || selectedToken.id;
+
+        setLoading(true);
+        try {
+            // Fetch fresh data
+            const baseData = await api.getTokenDetails(tokenId);
+
+            // MERGE Logic (Critical to prevent zeroing out)
+            setIntelligence(prev => {
+                const prevMetrics = prev?.coreMetrics || selectedToken;
+                return {
+                    ...prev,
+                    ...baseData,
+                    header: {
+                        ...baseData.header,
+                        baseToken: {
+                            ...baseData.header.baseToken,
+                            name: baseData.header.baseToken.name !== 'Unknown' ? baseData.header.baseToken.name : (prev?.header?.baseToken?.name || selectedToken.name),
+                            symbol: baseData.header.baseToken.symbol !== '???' ? baseData.header.baseToken.symbol : (prev?.header?.baseToken?.symbol || selectedToken.symbol),
+                        }
+                    },
+                    coreMetrics: {
+                        ...prevMetrics, // Keep existing rich data
+                        ...baseData.coreMetrics, // Update with fresh API data
+                        // Ensure we don't overwrite valid data with 0/undefined if API fails
+                        marketCap: baseData.coreMetrics.marketCap || prevMetrics.marketCap,
+                        liquidity: baseData.coreMetrics.liquidity || prevMetrics.liquidity,
+                        volume24h: baseData.coreMetrics.volume24h || prevMetrics.volume24h,
+                    }
+                };
+            });
+
+            setLastUpdate(Date.now());
+            setConfidence(100);
+
+            // Trigger AI Manually
+            setAiLoading(true);
+            // Re-construct payload from the MERGED state we just calculated? 
+            // Better to use a timeout or just wait for the effect?
+            // Actually, let's just trigger it directly here to be instant.
+
+            const mergedMetrics = {
+                ...selectedToken,
+                ...baseData.coreMetrics
+            };
+
+            const aiPayload = {
+                name: baseData.header.baseToken.name !== 'Unknown' ? baseData.header.baseToken.name : selectedToken.name,
+                symbol: baseData.header.baseToken.symbol,
+                marketCap: mergedMetrics.marketCap,
+                liquidity: mergedMetrics.liquidity,
+                volume: mergedMetrics.volume24h,
+                age: mergedMetrics.age,
+                topHolder: baseData.topHolders?.[0]?.percent || 0
+            };
+
+            api.analyzeToken(aiPayload).then(aiResult => {
+                setIntelligence(prev => ({
+                    ...prev,
+                    threatSignal: {
+                        level: aiResult.threat,
+                        probability: aiResult.confidence,
+                        label: aiResult.summary
+                    },
+                    overallAssessment: {
+                        summary: aiResult.summary,
+                        action: getActionFromThreat(aiResult.threat)
+                    },
+                    aiExplanation: aiResult.aiExplanation || [],
+                    detailedReasoning: aiResult.detailedReasoning || []
+                }));
+                setConfidence(aiResult.confidence);
+            }).finally(() => setAiLoading(false));
+
+        } catch (err) {
+            setError(err.message);
+            setLoading(false);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const copyToClipboard = (text) => {
+        navigator.clipboard.writeText(text);
+        // Could add a toast here, but for now just simple action
+    };
 
     return (
-        <div className="sidebar">
-            {/* Token Header */}
-            <div className="sidebar-header">
+        <div className="sidebar single-page">
+            {/* Header: Token Identity */}
+            <div className="sidebar-header compact">
                 <div className="token-identity-row">
                     <div className="token-name-large">
-                        {d.header?.baseToken?.name}
-                        <span className="ticker">{d.header?.baseToken?.symbol}</span>
-                    </div>
-                    <div className="token-price-large">
-                        ${d.header?.priceUsd?.toFixed?.(8) || '0'}
+                        {d.header?.baseToken?.name} <span className="ticker">({d.header?.baseToken?.symbol})</span>
                     </div>
                 </div>
-                <div className="meta-grid">
-                    <div className="meta-item">
-                        <span className="meta-label">MC</span>
-                        <span className="meta-value">{formatNumber(d.header?.marketCap)}</span>
-                    </div>
-                    <div className="meta-item">
-                        <span className="meta-label">LIQ</span>
-                        <span className="meta-value">{formatNumber(d.header?.liquidityUsd)}</span>
-                    </div>
-                    <div className="meta-item">
-                        <span className="meta-label">24H VOL</span>
-                        <span className="meta-value">{formatNumber(d.header?.volume24h)}</span>
-                    </div>
-                    <div className="meta-item">
-                        <span className="meta-label">AGE</span>
-                        <span className="meta-value">{d.header?.pairAge || 'N/A'}</span>
-                    </div>
+
+                {/* Confidence Indicator */}
+                <div className="confidence-badge" style={{ color: confidenceColor }}>
+                    Data Confidence: {confidence}%
+                    {confidence < 80 && <span className="decay-warning"> ⚠️ Decaying</span>}
                 </div>
             </div>
 
-            {/* Tab Navigation */}
-            <div className="tab-nav">
-                <button className={`tab-btn ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}>Overview</button>
-                <button className={`tab-btn ${activeTab === 'market' ? 'active' : ''}`} onClick={() => setActiveTab('market')}>Market</button>
-                <button className={`tab-btn ${activeTab === 'trends' ? 'active' : ''}`} onClick={() => setActiveTab('trends')}>Trends</button>
-                <button className={`tab-btn ${activeTab === 'dev' ? 'active' : ''}`} onClick={() => setActiveTab('dev')}>Dev</button>
+            {/* Manual Intelligence Trigger */}
+            <div className="sidebar-controls">
+                <button className="top-intel-btn" onClick={handleRefresh} disabled={loading || aiLoading}>
+                    ✨ Generate Intelligence
+                </button>
             </div>
 
-            {/* EDGE SCORE - Hero Card */}
-            <div className="terminal-card edge-card" style={{ borderLeft: `6px solid ${edgeColor}` }}>
-                <div className="section-title">
-                    🎯 EDGE SCORE
-                    <span className="edge-level" style={{ color: edgeColor }}>{d.edgeScore?.level}</span>
+            {/* 1. THREAT SIGNAL - Most Important */}
+            <div
+                className="terminal-card threat-card"
+                style={{
+                    borderColor: threatColor,
+                    borderLeft: `6px solid ${threatColor}`,
+                    background: `${threatColor}08`
+                }}
+            >
+                <div className="section-title">🚨 THREAT SIGNAL</div>
+                <div className="threat-status" style={{ color: threatColor }}>
+                    <span className="threat-emoji">{getThreatEmoji(signal.level)}</span>
+                    <span className="threat-level">{signal.level} RISK</span>
                 </div>
-                <div className="edge-hero" style={{ color: edgeColor }}>
-                    {d.edgeScore?.score || 0}
-                    <span className="edge-max">/100</span>
-                </div>
-
-                <div className="edge-breakdown">
-                    <div className="edge-component">
-                        <span className="comp-label">Safety</span>
-                        <span className="comp-value">{d.edgeScore?.breakdown?.safety?.contribution || 0}</span>
-                    </div>
-                    <div className="edge-component">
-                        <span className="comp-label">Narrative</span>
-                        <span className="comp-value">{d.edgeScore?.breakdown?.narrative?.contribution || 0}</span>
-                    </div>
-                    <div className="edge-component">
-                        <span className="comp-label">SmartFlow</span>
-                        <span className="comp-value">{d.edgeScore?.breakdown?.smartFlow?.contribution || 0}</span>
-                    </div>
-                    <div className="edge-component">
-                        <span className="comp-label">Integrity</span>
-                        <span className="comp-value">{d.edgeScore?.breakdown?.marketIntegrity?.contribution || 0}</span>
-                    </div>
+                <div className="threat-label">{signal.label}</div>
+                <div className="threat-prob">
+                    Risk Probability: <strong>{signal.probability}%</strong>
                 </div>
 
-                {/* Recommendation */}
-                <div className="recommendation-box" style={{ borderColor: edgeColor }}>
-                    <div className="rec-action" style={{ color: edgeColor }}>
-                        {d.edgeScore?.recommendation?.action?.replace('_', ' ')}
-                    </div>
-                    <div className="rec-reason">{d.edgeScore?.recommendation?.reason}</div>
-                    <div className="rec-confidence">Confidence: {d.edgeScore?.recommendation?.confidence}%</div>
+                {/* Visual Risk Bar */}
+                <div className="risk-bar-container">
+                    <div
+                        className="risk-bar-fill"
+                        style={{
+                            width: `${signal.probability}%`,
+                            background: threatColor
+                        }}
+                    ></div>
                 </div>
             </div>
 
-            {/* OVERVIEW TAB */}
-            {activeTab === 'overview' && (
-                <>
-                    {/* AI Sentiment (Moved from Degen) */}
-                    <div className="terminal-card">
-                        <div className="section-title">🧠 AI SENTIMENT</div>
-                        <div className={`sentiment-badge sentiment-${d.degenIntel?.sentiment?.overall?.toLowerCase()}`}>
-                            {d.degenIntel?.sentiment?.overall}
-                        </div>
-                        <div className="sentiment-insight">
-                            {d.degenIntel?.sentiment?.keyInsight}
-                        </div>
-                        <div className="sentiment-action">
-                            💡 {d.degenIntel?.sentiment?.suggestedAction}
-                        </div>
+            {/* 2. CORE METRICS (Real-Time) */}
+            <div className="terminal-card">
+                <div className="section-title">stats CORE METRICS (REAL-TIME)</div>
+                <div className="metrics-list">
+                    <div className="metric-row">
+                        <span className="m-label">Price:</span>
+                        <span className="m-value prop-font">${d.coreMetrics?.price?.toFixed(8) || '0.00'}</span>
                     </div>
-
-                    {/* Narrative Heatmap (Moved from Degen) */}
-                    <div className="terminal-card">
-                        <div className="section-title">
-                            🔥 NARRATIVE ROTATION
-                        </div>
-                        <div className="current-sector">
-                            Sector: <span className="sector-name">{d.degenIntel?.narrative?.currentSector}</span>
-                            {d.degenIntel?.narrative?.trending && <span className="trending-badge">🔥 HOT</span>}
-                        </div>
+                    {/* Replaced 24h Change/Vol with Contract Address */}
+                    <div className="metric-row">
+                        <span className="m-label">Contract:</span>
+                        <span className="m-value mono" style={{ fontSize: '0.8rem' }}>
+                            {d.header?.baseToken?.address?.slice(0, 4)}...{d.header?.baseToken?.address?.slice(-4)}
+                            <button
+                                className="copy-btn"
+                                onClick={() => copyToClipboard(d.header?.baseToken?.address)}
+                                title="Copy Address"
+                            >
+                                📋
+                            </button>
+                        </span>
                     </div>
+                    <div className="metric-row">
+                        <span className="m-label">Market Cap:</span>
+                        <span className="m-value prop-font">{formatNumber(d.coreMetrics?.marketCap)}</span>
+                    </div>
+                    <div className="metric-row">
+                        <span className="m-label">Liquidity:</span>
+                        <span className="m-value prop-font">{formatNumber(d.coreMetrics?.liquidity)}</span>
+                    </div>
+                    <div className="metric-row">
+                        <span className="m-label">Age:</span>
+                        <span className="m-value">{d.coreMetrics?.age || 'Unknown'}</span>
+                    </div>
+                    <div className="metric-row">
+                        <span className="m-label">Liq/MC Ratio:</span>
+                        <span className="m-value">
+                            {d.coreMetrics?.marketCap > 0
+                                ? ((d.coreMetrics.liquidity / d.coreMetrics.marketCap) * 100).toFixed(2)
+                                : '0'
+                            }%
+                        </span>
+                    </div>
+                </div>
+                <div className="last-update">
+                    Last Update: {d.header?.lastUpdate || 'Just now'}
+                    {confidence < 90 && <span> • Confidence decaying...</span>}
+                </div>
+            </div>
 
-                    {/* Risk & Bullish Factors */}
-                    {(d.edgeScore?.riskFactors?.length > 0 || d.edgeScore?.bullishFactors?.length > 0) && (
-                        <div className="terminal-card factors-card">
-                            {d.edgeScore?.bullishFactors?.length > 0 && (
-                                <div className="factors-section bullish">
-                                    <div className="factors-title">🟢 Signals</div>
-                                    {d.edgeScore.bullishFactors.map((f, i) => (
-                                        <div key={i} className="factor-item">{f}</div>
-                                    ))}
-                                </div>
-                            )}
-                            {d.edgeScore?.riskFactors?.length > 0 && (
-                                <div className="factors-section risk">
-                                    <div className="factors-title">🔴 Risks</div>
-                                    {d.edgeScore.riskFactors.map((f, i) => (
-                                        <div key={i} className="factor-item">{f}</div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
+            {/* 3. AI MICRO-EXPLANATION */}
+            <div className="terminal-card">
+                <div className="section-title">🤖 AI ANALYSIS</div>
+                {aiLoading ? (
+                    <div className="sidebar-loading-small">
+                        <span className="spinner-small">🔄</span> Processing real-time data...
+                    </div>
+                ) : d.aiExplanation && d.aiExplanation.length > 0 ? (
+                    <ul className="ai-bullets">
+                        {d.aiExplanation.map((item, i) => (
+                            <li key={i}>
+                                <strong>{item.text}</strong>
+                                <span className="confidence"> ({item.confidence}% confidence)</span>
+                            </li>
+                        ))}
+                    </ul>
+                ) : (
+                    <div className="placeholder-text">Waiting for analysis...</div>
+                )}
+            </div>
+
+            {/* 4. TOP HOLDERS (WHALE TRACKER) */}
+            <div className="terminal-card">
+                <div className="section-title">🐋 TOP HOLDERS (WHALE TRACKER)</div>
+                <div className="holder-list">
+                    {d.topHolders && d.topHolders.length > 0 ? (
+                        d.topHolders.map((h, i) => (
+                            <div key={i} className="holder-item">
+                                <span className="h-rank">{i + 1}.</span>
+                                <span className="h-addr">
+                                    {h.address.slice(0, 6)}...{h.address.slice(-4)}
+                                </span>
+                                <span className="h-percent">{h.percent}%</span>
+                                {h.trend === 'down' && <span className="h-trend down">↓</span>}
+                                {h.trend === 'up' && <span className="h-trend up">↑</span>}
+                                {h.label && (
+                                    <span
+                                        className="h-label"
+                                        style={{
+                                            color: h.label === 'WHALE' ? '#ef4444' :
+                                                h.label === 'LARGE' ? '#f97316' :
+                                                    h.label === 'DEV?' ? '#dc2626' : '#71717a'
+                                        }}
+                                    >
+                                        {h.label}
+                                    </span>
+                                )}
+                            </div>
+                        ))
+                    ) : (
+                        <div className="placeholder-text">Holders data loading...</div>
                     )}
-                </>
-            )}
-
-            {/* MARKET TAB */}
-            {activeTab === 'market' && (
-                <>
-                    {/* TOP WALLETS (New) */}
-                    <div className="terminal-card">
-                        <div className="section-title">🐋 TOP WALLETS</div>
-                        <div className="wallet-list">
-                            {d.holderPatterns?.patterns?.length > 0 ? (
-                                d.holderPatterns.patterns.map((w, i) => (
-                                    <div key={i} className="wallet-item">
-                                        <span className="wallet-rank">#{w.rank}</span>
-                                        <span className="wallet-addr">{w.address}</span>
-                                        <span className="wallet-icon" title={w.pattern}>
-                                            {getPatternIcon(w.pattern)}
-                                        </span>
-                                        <span className={`wallet-sentiment ${w.sentiment?.toLowerCase()}`}>
-                                            {w.pattern?.replace('_', ' ')}
-                                        </span>
-                                    </div>
-                                ))
-                            ) : (
-                                <div className="empty-wallets">No significant wallet patterns detected</div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Smart Flow (Moved from Degen) */}
-                    <div className="terminal-card" style={{ borderLeft: `3px solid ${getScoreColor(d.degenIntel?.smartFlow?.score || 0)}` }}>
-                        <div className="section-title">💎 SMART MONEY FLOW</div>
-                        <div className="smart-score">{d.degenIntel?.smartFlow?.score || 0}/100</div>
-                        <div className="smart-stats">
-                            <div className="smart-stat positive">
-                                <span className="stat-icon">🟢</span>
-                                <span>{d.degenIntel?.smartFlow?.recentEntries || 0} Entries</span>
-                            </div>
-                            <div className="smart-stat negative">
-                                <span className="stat-icon">🔴</span>
-                                <span>{d.degenIntel?.smartFlow?.recentExits || 0} Exits</span>
-                            </div>
-                            <div className="smart-stat">
-                                <span className="stat-icon">💰</span>
-                                <span>{formatNumber(d.degenIntel?.smartFlow?.netFlow || 0)}</span>
-                            </div>
-                        </div>
-                        {d.degenIntel?.smartFlow?.alert && (
-                            <div className="smart-alert">{d.degenIntel.smartFlow.alert}</div>
-                        )}
-                    </div>
-
-                    {/* Market Integrity Score */}
-                    <div className="terminal-card" style={{ borderLeft: `3px solid ${getScoreColor(d.marketIntegrity?.overallScore || 0)}` }}>
-                        <div className="section-title">🛡️ MARKET INTEGRITY</div>
-                        <div className="integrity-score">{d.marketIntegrity?.overallScore || 0}/100</div>
-                        <div className="signal-list">
-                            {d.marketIntegrity?.signals?.map((s, i) => (
-                                <div key={i} className="signal-item">{s}</div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Wash Trading */}
-                    <div className={`terminal-card wash-${d.marketIntegrity?.washTrading?.color?.toLowerCase()}`}>
-                        <div className="section-title">💧 WASH TRADING</div>
-                        <div className="wash-stats">
-                            <div className="wash-stat">
-                                <span className="wash-label">Fake Volume</span>
-                                <span className="wash-value" style={{ color: d.marketIntegrity?.washTrading?.detected ? '#ef4444' : '#22c55e' }}>
-                                    {d.marketIntegrity?.washTrading?.washVolumePercent?.toFixed(1) || 0}%
-                                </span>
-                            </div>
-                            <div className="wash-stat">
-                                <span className="wash-label">Real Volume</span>
-                                <span className="wash-value">{formatNumber(d.marketIntegrity?.washTrading?.realVolume)}</span>
-                            </div>
-                        </div>
-                    </div>
-                </>
-            )}
-
-            {/* TRENDS TAB */}
-            {activeTab === 'trends' && (
-                <>
-                    {/* HYPE METER */}
-                    <div className="terminal-card" style={{ borderLeft: `3px solid ${getScoreColor(d.socialIntel?.hypeScore || 0)}` }}>
-                        <div className="section-title">📡 HYPE RADAR</div>
-                        <div className="hype-score-display">
-                            <span className="hype-value">{d.socialIntel?.hypeScore || 0}</span>
-                            <span className="hype-max">/100</span>
-                        </div>
-                        <div className="hype-narrative">
-                            NARRATIVE: <span className="narrative-tag">{d.socialIntel?.narrative || 'Unknown'}</span>
-                        </div>
-                    </div>
-
-                    {/* SOCIAL VOLUME */}
-                    <div className="terminal-card">
-                        <div className="section-title">🗣️ SOCIAL VOLUME</div>
-                        <div className="social-stats">
-                            <div className="stat-row">
-                                <span className="stat-label">Mentions 24h</span>
-                                <span className="stat-value">{formatNumber(d.socialIntel?.socialVolume || 0)}</span>
-                            </div>
-                            <div className="stat-row">
-                                <span className="stat-label">Acceleration</span>
-                                <span className={`stat-value ${d.socialIntel?.acceleration > 0 ? 'positive' : 'negative'}`}>
-                                    {d.socialIntel?.acceleration > 0 ? '+' : ''}{d.socialIntel?.acceleration || 0}%
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* TOP INFLUENCERS */}
-                    <div className="terminal-card">
-                        <div className="section-title">📢 TOP KEY OPINION LEADERS</div>
-                        <div className="influencer-list">
-                            {d.socialIntel?.topInfluencers?.length > 0 ? (
-                                d.socialIntel.topInfluencers.map((inf, i) => (
-                                    <div key={i} className="influencer-item">
-                                        <span className="influencer-rank">#{i + 1}</span>
-                                        <span className="influencer-name">{inf}</span>
-                                    </div>
-                                ))
-                            ) : (
-                                <div className="empty-state">No major KOLs detected yet</div>
-                            )}
-                        </div>
-                    </div>
-                </>
-            )}
-
-            {/* DEV PROFILE TAB */}
-            {activeTab === 'dev' && (
-                <>
-                    {/* Dev Reputation */}
-                    <div className="terminal-card" style={{ borderLeft: `3px solid ${getDevLabelColor(d.devProfile?.reputation?.label)}` }}>
-                        <div className="section-title">👤 DEV HISTORY</div>
-                        <div className="dev-label" style={{ color: getDevLabelColor(d.devProfile?.reputation?.label) }}>
-                            {d.devProfile?.reputation?.label?.replace('_', ' ')}
-                        </div>
-                        <div className="dev-stats">
-                            <div className="dev-stat">
-                                <span className="stat-num">{d.devProfile?.reputation?.previousProjects || 0}</span>
-                                <span className="stat-label">Projects</span>
-                            </div>
-                            <div className="dev-stat success">
-                                <span className="stat-num">{d.devProfile?.reputation?.successfulProjects || 0}</span>
-                                <span className="stat-label">Successful</span>
-                            </div>
-                            <div className="dev-stat danger">
-                                <span className="stat-num">{d.devProfile?.reputation?.ruggedProjects || 0}</span>
-                                <span className="stat-label">Rugged</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Drain Alert */}
-                    <div className={`terminal-card ${d.devProfile?.drainAlert?.triggered ? 'alert-critical' : ''}`}>
-                        <div className="section-title">⚠️ DRAIN DETECTION</div>
-                        {d.devProfile?.drainAlert?.triggered ? (
-                            <div className="drain-alert">
-                                <span className="drain-icon">⛔</span>
-                                <span>Dev sold {d.devProfile.drainAlert.devSoldPercent.toFixed(0)}% in {d.devProfile.drainAlert.timeSinceLaunch}min</span>
-                            </div>
-                        ) : (
-                            <div className="drain-safe">✅ No drain activity detected</div>
-                        )}
-                    </div>
-                </>
-            )}
-
-            {/* Safety Panel - Always Visible */}
-            <div className={`terminal-card threat-${d.threat?.level?.toLowerCase() || 'green'}`}>
-                <div className="section-title">🛡️ SAFETY</div>
-                <div className="threat-display">
-                    <span className="threat-level">{d.threat?.level || 'GREEN'}</span>
-                    <span className="safety-score">{d.threat?.safetyScore || 100}/100</span>
                 </div>
+
+                {/* Holder Concentration Warning */}
+                {d.topHolders && d.topHolders.length >= 3 && (
+                    <div className="holder-warning">
+                        {(() => {
+                            const top3 = d.topHolders.slice(0, 3).reduce((s, h) => s + parseFloat(h.percent), 0);
+                            if (top3 > 60) {
+                                return (
+                                    <div className="warning-high">
+                                        ⚠️ CRITICAL: Top 3 hold {top3.toFixed(1)}% - Extreme rug risk
+                                    </div>
+                                );
+                            } else if (top3 > 40) {
+                                return (
+                                    <div className="warning-medium">
+                                        ⚠️ WARNING: Top 3 hold {top3.toFixed(1)}% - High manipulation risk
+                                    </div>
+                                );
+                            }
+                            return null;
+                        })()}
+                    </div>
+                )}
+            </div>
+
+            {/* 5. DETAILED REASONING */}
+            <div className="terminal-card">
+                <div className="section-title">🔍 DETAILED REASONING</div>
+                <div className="reasoning-list">
+                    {d.detailedReasoning && d.detailedReasoning.length > 0 ? (
+                        d.detailedReasoning.map((r, i) => (
+                            <div key={i} className="reasoning-item">
+                                <div className="r-title">{i + 1}. {r.title}</div>
+                                <div className="r-content">{r.content}</div>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="placeholder-text">Generating detailed report...</div>
+                    )}
+                </div>
+            </div>
+
+            {/* 6. THREAT SIGNALS BREAKDOWN */}
+            {signal.signals && signal.signals.length > 0 && (
+                <div className="terminal-card">
+                    <div className="section-title">⚡ ACTIVE THREAT SIGNALS</div>
+                    <div className="signals-list">
+                        {signal.signals.map((sig, i) => (
+                            <div key={i} className="signal-item">
+                                <div className="sig-header">
+                                    <span className="sig-factor">{sig.factor}</span>
+                                    <span
+                                        className="sig-impact"
+                                        style={{
+                                            color: sig.impact === 'CRITICAL' ? '#dc2626' :
+                                                sig.impact === 'HIGH' ? '#ef4444' :
+                                                    sig.impact === 'MODERATE' ? '#f59e0b' : '#3b82f6'
+                                        }}
+                                    >
+                                        {sig.impact}
+                                    </span>
+                                </div>
+                                <div className="sig-confidence">
+                                    Confidence: {sig.confidence}%
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* 7. OVERALL ASSESSMENT */}
+            {d.overallAssessment && (
+                <div className="terminal-card assessment-card">
+                    <div className="section-title">📋 OVERALL ASSESSMENT</div>
+                    <div className="assess-summary">{d.overallAssessment.summary}</div>
+                    <div className="assess-action">{d.overallAssessment.action}</div>
+                </div>
+            )}
+
+            {/* Refresh Button */}
+            <div className="sidebar-footer">
+                <button
+                    className="refresh-btn"
+                    onClick={handleRefresh}
+                    disabled={loading}
+                >
+                    🔄 Refresh Intelligence
+                </button>
             </div>
         </div>
     );
 };
+
+// Helper functions
+function getThreatColor(level) {
+    if (level === 'HIGH') return '#ef4444';
+    if (level === 'MODERATE') return '#f59e0b';
+    if (level === 'LOW') return '#3b82f6';
+    return '#22c55e';
+}
+
+function getThreatEmoji(level) {
+    if (level === 'HIGH') return '🔴';
+    if (level === 'MODERATE') return '🟡';
+    if (level === 'LOW') return '🔵';
+    return '🟢';
+}
+
+function getConfidenceColor(confidence) {
+    if (confidence >= 90) return '#22c55e';
+    if (confidence >= 70) return '#3b82f6';
+    if (confidence >= 50) return '#f59e0b';
+    return '#ef4444';
+}
+
+function getActionFromThreat(threat) {
+    if (threat === 'EXTREME' || threat === 'HIGH') return '⛔ RECOMMENDATION: AVOID / EXIT IMMEDIATELY';
+    if (threat === 'MODERATE') return '⚠️ RECOMMENDATION: Exercise Caution (Small Size)';
+    return '✅ RECOMMENDATION: Looks tradable (DYOR)';
+}
+
+// Helper to format age
+function formatAge(timestamp) {
+    if (!timestamp) return 'Unknown';
+    const diff = Date.now() - new Date(timestamp).getTime();
+    const hours = diff / (1000 * 60 * 60);
+    if (hours < 1) return '< 1h';
+    if (hours < 24) return `${Math.floor(hours)}h`;
+    return `${Math.floor(hours / 24)}d`;
+}
 
 export default Sidebar;
