@@ -34,7 +34,7 @@ const Header = ({ activePage = 'terminal', onNavigate, onSearch, onRefresh, sear
   return (
     <header>
       <div className="header-left">
-        <div className="logo">
+        <div className="logo" onClick={() => onNavigate && onNavigate('terminal')}>
           <div className="logo-icon">🔥</div>
           <span>EDGE ZONE™</span>
         </div>

@@ -135,17 +135,20 @@ function EdgeZoneApp() {
             ) : isLoading ? (
               <LoadingPanel />
             ) : (
-              (!isMobile || !selectedToken) && (
-                <div className="table-section">
+              <>
+                {/* Table Section - Hidden on mobile if token selected */}
+                <div className={`table-section ${isMobile && selectedToken ? 'mobile-hidden' : ''}`}>
                   <TokenTable />
                 </div>
-              )
-            )}
 
-            {(!isMobile || selectedToken) && (
-              <div className="sidebar-section">
-                <Sidebar isMobile={isMobile} onBack={handleBackToTable} />
-              </div>
+                {/* Sidebar Section - Always rendered, hidden on mobile if NO token selected */}
+                <div className={`sidebar-section ${isMobile && !selectedToken ? 'mobile-hidden' : ''}`}>
+                  <Sidebar
+                    isMobile={isMobile}
+                    onBack={handleBackToTable}
+                  />
+                </div>
+              </>
             )}
           </div>
         </>
