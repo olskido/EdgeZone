@@ -1,0 +1,46 @@
+.risk-legend {
+    display: flex;
+    gap: 16px;
+    padding: 8px 16px;
+    background: #18181b;
+    border: 1px solid #27272a;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: #a1a1aa;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+}
+
+.legend-color.safe {
+    background-color: #22c55e;
+}
+
+.legend-color.low {
+    background-color: #3b82f6;
+}
+
+.legend-color.moderate {
+    background-color: #f59e0b;
+}
+
+.legend-color.high {
+    background-color: #ef4444;
+}
+
+.legend-color.extreme {
+    background-color: #dc2626;
+    box-shadow: 0 0 4px #dc2626;
+}

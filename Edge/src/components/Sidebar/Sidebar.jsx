@@ -4,7 +4,17 @@ import useTokenStore from '../../store/useTokenStore';
 import './Sidebar.css';
 import { api } from '../../services/api';
 
-const Sidebar = () => {
+// 🔥 CENTRALIZED THREAT COLORS (Single Source of Truth)
+const threatColors = {
+    'HIGH': '#ef4444',     // Red
+    'EXTREME': '#dc2626',  // Dark Red
+    'MODERATE': '#f59e0b', // Yellow/Orange
+    'LOW': '#3b82f6',      // Blue (Safe)
+    'SAFE': '#22c55e',     // Green
+    'analyzing': '#94a3b8' // Gray
+};
+
+const Sidebar = ({ isMobile, onBack }) => {
     const { selectedToken, loadingToken } = useTokenStore();
     const [intelligence, setIntelligence] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -184,7 +194,8 @@ const Sidebar = () => {
         if (!selectedToken) return;
         const tokenId = selectedToken.contract || selectedToken.id;
 
-        setLoading(true);
+        // Don't set loading(true) here to preserve UI state
+        // just let aiLoading indicate progress
         try {
             // Fetch fresh data
             const baseData = await api.getTokenDetails(tokenId);
@@ -210,7 +221,11 @@ const Sidebar = () => {
                         marketCap: baseData.coreMetrics.marketCap || prevMetrics.marketCap,
                         liquidity: baseData.coreMetrics.liquidity || prevMetrics.liquidity,
                         volume24h: baseData.coreMetrics.volume24h || prevMetrics.volume24h,
-                    }
+                    },
+                    // 🔥 PRESERVE AI DATA (Don't overwrite with empty arrays from API)
+                    aiExplanation: (baseData.aiExplanation?.length > 0 ? baseData.aiExplanation : prev.aiExplanation) || [],
+                    detailedReasoning: (baseData.detailedReasoning?.length > 0 ? baseData.detailedReasoning : prev.detailedReasoning) || [],
+                    threatSignal: (baseData.threatSignal ? baseData.threatSignal : prev.threatSignal)
                 };
             });
 
@@ -266,7 +281,13 @@ const Sidebar = () => {
 
     const copyToClipboard = (text) => {
         navigator.clipboard.writeText(text);
-        // Could add a toast here, but for now just simple action
+        // Visual feedback
+        const btn = document.getElementById('copy-btn-sidebar');
+        if (btn) {
+            const original = btn.innerHTML;
+            btn.innerHTML = '✅';
+            setTimeout(() => btn.innerHTML = original, 1000);
+        }
     };
 
     return (
@@ -274,6 +295,22 @@ const Sidebar = () => {
             {/* Header: Token Identity */}
             <div className="sidebar-header compact">
                 <div className="token-identity-row">
+                    {/* Mobile Back Button */}
+                    {isMobile && onBack && (
+                        <button
+                            onClick={onBack}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#a1a1aa',
+                                fontSize: '1.2rem',
+                                marginRight: '8px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            ←
+                        </button>
+                    )}
                     <div className="token-name-large">
                         {d.header?.baseToken?.name} <span className="ticker">({d.header?.baseToken?.symbol})</span>
                     </div>
@@ -286,12 +323,8 @@ const Sidebar = () => {
                 </div>
             </div>
 
-            {/* Manual Intelligence Trigger */}
-            <div className="sidebar-controls">
-                <button className="top-intel-btn" onClick={handleRefresh} disabled={loading || aiLoading}>
-                    ✨ Generate Intelligence
-                </button>
-            </div>
+            {/* Manual Intelligence Trigger REMOVED (Consolidated to footer) */}
+
 
             {/* 1. THREAT SIGNAL - Most Important */}
             <div
@@ -338,6 +371,7 @@ const Sidebar = () => {
                         <span className="m-value mono" style={{ fontSize: '0.8rem' }}>
                             {d.header?.baseToken?.address?.slice(0, 4)}...{d.header?.baseToken?.address?.slice(-4)}
                             <button
+                                id="copy-btn-sidebar"
                                 className="copy-btn"
                                 onClick={() => copyToClipboard(d.header?.baseToken?.address)}
                                 title="Copy Address"
@@ -354,10 +388,7 @@ const Sidebar = () => {
                         <span className="m-label">Liquidity:</span>
                         <span className="m-value prop-font">{formatNumber(d.coreMetrics?.liquidity)}</span>
                     </div>
-                    <div className="metric-row">
-                        <span className="m-label">Age:</span>
-                        <span className="m-value">{d.coreMetrics?.age || 'Unknown'}</span>
-                    </div>
+
                     <div className="metric-row">
                         <span className="m-label">Liq/MC Ratio:</span>
                         <span className="m-value">
@@ -376,12 +407,11 @@ const Sidebar = () => {
 
             {/* 3. AI MICRO-EXPLANATION */}
             <div className="terminal-card">
-                <div className="section-title">🤖 AI ANALYSIS</div>
-                {aiLoading ? (
-                    <div className="sidebar-loading-small">
-                        <span className="spinner-small">🔄</span> Processing real-time data...
-                    </div>
-                ) : d.aiExplanation && d.aiExplanation.length > 0 ? (
+                <div className="section-title">
+                    🤖 AI ANALYSIS
+                    {aiLoading && <span className="spinner-small" style={{ marginLeft: 'auto' }}>🔄</span>}
+                </div>
+                {d.aiExplanation && d.aiExplanation.length > 0 ? (
                     <ul className="ai-bullets">
                         {d.aiExplanation.map((item, i) => (
                             <li key={i}>
@@ -500,10 +530,16 @@ const Sidebar = () => {
 
             {/* 7. OVERALL ASSESSMENT */}
             {d.overallAssessment && (
-                <div className="terminal-card assessment-card">
-                    <div className="section-title">📋 OVERALL ASSESSMENT</div>
+                <div
+                    className="terminal-card assessment-card"
+                    style={{
+                        borderColor: threatColor,
+                        borderLeft: `4px solid ${threatColor}`
+                    }}
+                >
+                    <div className="section-title" style={{ color: threatColor }}>📋 OVERALL ASSESSMENT</div>
                     <div className="assess-summary">{d.overallAssessment.summary}</div>
-                    <div className="assess-action">{d.overallAssessment.action}</div>
+                    <div className="assess-action" style={{ color: threatColor }}>{d.overallAssessment.action}</div>
                 </div>
             )}
 
@@ -512,9 +548,9 @@ const Sidebar = () => {
                 <button
                     className="refresh-btn"
                     onClick={handleRefresh}
-                    disabled={loading}
+                    disabled={loading || aiLoading}
                 >
-                    🔄 Refresh Intelligence
+                    {aiLoading ? '🔄 Analyzing...' : '✨ Run Risk Analysis'}
                 </button>
             </div>
         </div>
@@ -523,10 +559,7 @@ const Sidebar = () => {
 
 // Helper functions
 function getThreatColor(level) {
-    if (level === 'HIGH') return '#ef4444';
-    if (level === 'MODERATE') return '#f59e0b';
-    if (level === 'LOW') return '#3b82f6';
-    return '#22c55e';
+    return threatColors[level] || threatColors.analyzing;
 }
 
 function getThreatEmoji(level) {

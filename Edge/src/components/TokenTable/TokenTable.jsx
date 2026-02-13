@@ -111,11 +111,8 @@ const TokenTable = () => {
                 <div className="col-metric clickable" onClick={() => handleSort('liquidity')}>
                     Liquidity {renderSortArrow('liquidity')}
                 </div>
-                <div className="col-metric clickable" onClick={() => handleSort('volume')}>
-                    24h Vol {renderSortArrow('volume')}
-                </div>
-                <div className="col-metric">Age</div>
-                <div className="col-threat-icon">Sentiment</div>
+                {/* Trade Sentiment Header (Replaces Vol/Age) */}
+                <div className="col-sentiment">Trade Sentiment</div>
             </div>
 
             {/* Body */}
@@ -124,6 +121,10 @@ const TokenTable = () => {
                     const isSelected = selectedToken?.id === token.id;
                     const isExpanded = expandedRowId === token.id;
                     const threatLevel = token.threatLevel || 'LOW';
+
+                    // Calculate Sentiment
+                    const totalTx = (token.buys24h || 0) + (token.sells24h || 0);
+                    const buyPercent = totalTx > 0 ? ((token.buys24h || 0) / totalTx) * 100 : 50;
 
                     return (
                         <div key={`${token.id}-${token.updatedAt || 'static'}`} className={`table-row-group ${isSelected ? 'selected' : ''}`}>
@@ -146,8 +147,22 @@ const TokenTable = () => {
                                 <div className="col-metric strong">{formatUsd(token.price)}</div>
                                 <div className="col-metric">{formatVol(token.marketCap)}</div>
                                 <div className="col-metric">{formatVol(token.liquidity)}</div>
-                                <div className="col-metric">{formatVol(token.volume24h)}</div>
-                                <div className="col-metric">{formatAge(token.created_at)}</div>
+
+                                {/* Trade Sentiment Bar */}
+                                <div className="col-sentiment">
+                                    <div className="sentiment-wrapper">
+                                        <div className="sentiment-bar">
+                                            <div className="buy-zone" style={{ width: `${buyPercent}%` }}></div>
+                                            <div className="pivot-line"></div>
+                                            <div className="sell-zone" style={{ width: `${100 - buyPercent}%` }}></div>
+                                        </div>
+                                        <span className="sentiment-text" style={{
+                                            color: buyPercent > 55 ? 'var(--neon-green)' : buyPercent < 45 ? 'var(--neon-red)' : '#94a3b8'
+                                        }}>
+                                            {buyPercent.toFixed(0)}% Buy
+                                        </span>
+                                    </div>
+                                </div>
 
                                 {/* Trade Sentiment Bar */}
                                 <div className="col-threat-icon">

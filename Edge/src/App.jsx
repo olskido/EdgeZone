@@ -9,10 +9,8 @@ import './App.css';
 import Header from './components/Header/Header';
 import TokenTable from './components/TokenTable/TokenTable';
 import Sidebar from './components/Sidebar/Sidebar';
-
+import RiskLegend from './components/RiskLegend/RiskLegend';
 import Footer from './components/Footer/Footer';
-
-// ... (imports remain)
 
 // Query client with longer timeouts for multi-search
 const queryClient = new QueryClient({
@@ -30,14 +28,26 @@ const queryClient = new QueryClient({
 
 function EdgeZoneApp() {
   const qc = useQueryClient();
-
+  const { selectedToken, selectToken } = useTokenStore();
   const [activePage, setActivePage] = useState('terminal');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  // Handle window resize for responsive check
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const onNavigate = useCallback((page) => {
     setActivePage(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
+
+  const handleBackToTable = () => {
+    selectToken(null);
+  };
 
   // Fetch tokens with React Query
   const { data, isLoading, isError, error, refetch, dataUpdatedAt, isFetching } = useQuery({
@@ -116,31 +126,37 @@ function EdgeZoneApp() {
         isRefreshing={isRefreshing || isFetching}
       />
 
-      <div className="container">
-        {activePage === 'edge-memory' ? (
-          <>
-            <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
-              <h2>🧠 Edge Memory</h2>
-              <p>Module under construction</p>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="content-wrapper">
-              <div className="main-panel">
-                {isError ? (
-                  <ErrorPanel error={error} onRetry={handleRefresh} />
-                ) : isLoading ? (
-                  <LoadingPanel />
-                ) : (
+      {activePage === 'terminal' && (
+        <>
+          <RiskLegend />
+          <div className="terminal-layout">
+            {isError ? (
+              <ErrorPanel error={error} onRetry={handleRefresh} />
+            ) : isLoading ? (
+              <LoadingPanel />
+            ) : (
+              (!isMobile || !selectedToken) && (
+                <div className="table-section">
                   <TokenTable />
-                )}
+                </div>
+              )
+            )}
+
+            {(!isMobile || selectedToken) && (
+              <div className="sidebar-section">
+                <Sidebar isMobile={isMobile} onBack={handleBackToTable} />
               </div>
-              <Sidebar />
-            </div>
-          </>
-        )}
-      </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {activePage === 'edge-memory' && (
+        <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
+          <h2>🧠 Edge Memory</h2>
+          <p>Module under construction</p>
+        </div>
+      )}
 
       <Footer />
     </>

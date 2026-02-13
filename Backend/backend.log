@@ -1,0 +1,79 @@
+[dotenv@17.2.4] injecting env (5) from .env -- tip: 👥 sync secrets across teammates & machines: https://dotenvx.com/ops
+✅ Upstash Redis ready
+[dotenv@17.2.4] injecting env (0) from .env -- tip: 👥 sync secrets across teammates & machines: https://dotenvx.com/ops
+[dotenv@17.2.4] injecting env (0) from .env -- tip: 🗂️ backup and recover secrets: https://dotenvx.com/ops
+🔥 AI Server running on port 5001
+⚡ Cache hit → gemini:undefined:v1
+⚡ Cache hit → gemini:undefined:v1
+⚡ Cache hit → gemini:undefined:v1
+⚡ Cache hit → gemini:undefined:v1
+⚡ Cache hit → gemini:undefined:v1
+⚡ Cache hit → gemini:undefined:v1
+⚡ Cache hit → gemini:undefined:v1
+Redis cache error: TypeError: fetch failed
+    at node:internal/deps/undici/undici:13510:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async HttpClient.request (file:///home/olskido/Desktop/EdgeZone/Backend/node_modules/@upstash/redis/chunk-Q3SWX4BB.mjs:171:15)
+    at async Pipeline.exec (file:///home/olskido/Desktop/EdgeZone/Backend/node_modules/@upstash/redis/chunk-Q3SWX4BB.mjs:2619:17)
+    at async AutoPipelineExecutor.withAutoPipeline (file:///home/olskido/Desktop/EdgeZone/Backend/node_modules/@upstash/redis/chunk-Q3SWX4BB.mjs:3558:21)
+    at async getOrSetCacheLocked (file:///home/olskido/Desktop/EdgeZone/Backend/services/redisClient.js:37:24)
+    at async analyzeTokenWithGemini (file:///home/olskido/Desktop/EdgeZone/Backend/services/geminiService.js:17:12)
+    at async file:///home/olskido/Desktop/EdgeZone/Backend/index.js:62:26 {
+  [cause]: ConnectTimeoutError: Connect Timeout Error (attempted address: romantic-wren-28065.upstash.io:443, timeout: 10000ms)
+      at onConnectTimeout (node:internal/deps/undici/undici:2602:28)
+      at Immediate._onImmediate (node:internal/deps/undici/undici:2583:11)
+      at process.processImmediate (node:internal/timers:483:21) {
+    code: 'UND_ERR_CONNECT_TIMEOUT'
+  }
+}
+Redis cache error: TypeError: fetch failed
+    at node:internal/deps/undici/undici:13510:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async HttpClient.request (file:///home/olskido/Desktop/EdgeZone/Backend/node_modules/@upstash/redis/chunk-Q3SWX4BB.mjs:171:15)
+    at async Pipeline.exec (file:///home/olskido/Desktop/EdgeZone/Backend/node_modules/@upstash/redis/chunk-Q3SWX4BB.mjs:2619:17)
+    at async AutoPipelineExecutor.withAutoPipeline (file:///home/olskido/Desktop/EdgeZone/Backend/node_modules/@upstash/redis/chunk-Q3SWX4BB.mjs:3558:21)
+    at async getOrSetCacheLocked (file:///home/olskido/Desktop/EdgeZone/Backend/services/redisClient.js:37:24)
+    at async analyzeTokenWithGemini (file:///home/olskido/Desktop/EdgeZone/Backend/services/geminiService.js:17:12)
+    at async file:///home/olskido/Desktop/EdgeZone/Backend/index.js:62:26 {
+  [cause]: ConnectTimeoutError: Connect Timeout Error (attempted address: romantic-wren-28065.upstash.io:443, timeout: 10000ms)
+      at onConnectTimeout (node:internal/deps/undici/undici:2602:28)
+      at Immediate._onImmediate (node:internal/deps/undici/undici:2583:11)
+      at process.processImmediate (node:internal/timers:483:21) {
+    code: 'UND_ERR_CONNECT_TIMEOUT'
+  }
+}
+🔥 AI ERROR: fetch failed
+Redis cache error: TypeError: fetch failed
+    at node:internal/deps/undici/undici:13510:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async HttpClient.request (file:///home/olskido/Desktop/EdgeZone/Backend/node_modules/@upstash/redis/chunk-Q3SWX4BB.mjs:171:15)
+    at async Pipeline.exec (file:///home/olskido/Desktop/EdgeZone/Backend/node_modules/@upstash/redis/chunk-Q3SWX4BB.mjs:2619:17)
+    at async AutoPipelineExecutor.withAutoPipeline (file:///home/olskido/Desktop/EdgeZone/Backend/node_modules/@upstash/redis/chunk-Q3SWX4BB.mjs:3558:21)
+    at async getOrSetCacheLocked (file:///home/olskido/Desktop/EdgeZone/Backend/services/redisClient.js:37:24)
+    at async analyzeTokenWithGemini (file:///home/olskido/Desktop/EdgeZone/Backend/services/geminiService.js:17:12)
+    at async file:///home/olskido/Desktop/EdgeZone/Backend/index.js:62:26 {
+  [cause]: ConnectTimeoutError: Connect Timeout Error (attempted address: romantic-wren-28065.upstash.io:443, timeout: 10000ms)
+      at onConnectTimeout (node:internal/deps/undici/undici:2602:28)
+      at Immediate._onImmediate (node:internal/deps/undici/undici:2583:11)
+      at process.processImmediate (node:internal/timers:483:21) {
+    code: 'UND_ERR_CONNECT_TIMEOUT'
+  }
+}
+🔥 AI ERROR: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent: fetch failed
+🔥 AI ERROR: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent: fetch failed
+⚡ Cache hit → gemini:undefined:v1
+⚡ Cache hit → gemini:undefined:v1
+⚡ Cache hit → gemini:undefined:v1
+⚡ Cache hit → gemini:undefined:v1
+⚡ Cache hit → gemini:undefined:v1
+⚡ Cache hit → gemini:undefined:v1
+⚡ Cache hit → gemini:undefined:v1
+⚡ Cache hit → gemini:undefined:v1
+⚡ Cache hit → gemini:undefined:v1
+⚡ Cache hit → gemini:undefined:v1
+⚡ Cache hit → gemini:undefined:v1
+⚡ Cache hit → gemini:undefined:v1
+⚡ Cache hit → gemini:undefined:v1
+⚡ Cache hit → gemini:undefined:v1
+⚡ Cache hit → gemini:undefined:v1
+⚡ Cache hit → gemini:undefined:v1

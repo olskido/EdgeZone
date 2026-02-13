@@ -75,8 +75,12 @@ const Header = ({ activePage = 'terminal', onNavigate, onSearch, onRefresh, sear
         >
           🔄
         </button>
-        <button className="telegram-btn">📱 Telegram</button>
-        <button className="notification-btn">🔔</button>
+        <button
+          className="telegram-btn"
+          onClick={() => alert("Detailed Edge Memory & Telegram Integration — Coming Soon!")}
+        >
+          📱 Telegram
+        </button>
       </div>
     </header>
   );

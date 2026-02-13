@@ -1,1 +1,62 @@
-/* Main App styles are handled in index.css and individual functional components */
+#root {
+  max-width: 1600px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+html,
+body {
+  overflow-x: hidden;
+  /* Prevent horizontal scroll */
+  width: 100%;
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  gap: 12px;
+  padding: 12px;
+  background-color: #0c0c0e;
+  color: #fff;
+  overflow: hidden;
+  box-sizing: border-box;
+  /* Ensure padding includes in width */
+  width: 100%;
+}
+
+.terminal-layout {
+  display: flex;
+  flex: 1;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.table-section {
+  flex: 7;
+  /* 70% width */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-section {
+  flex: 3;
+  /* 30% width */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Mobile Adjustments */
+@media (max-width: 768px) {
+  .terminal-layout {
+    flex-direction: column;
+  }
+
+  .table-section,
+  .sidebar-section {
+    flex: 1;
+    width: 100%;
+  }
+}

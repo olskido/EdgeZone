@@ -1,39 +1,72 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getOrSetCacheLocked } from "./redisClient.js";
+import dotenv from "dotenv";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_KEY);
+dotenv.config();
 
 export const analyzeTokenWithGemini = async (tokenData) => {
 
-    const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-flash",
-    });
+    const apiKey = process.env.GEMINI_API_KEY;
 
-    const prompt = `
+    if (!apiKey) {
+        throw new Error("GEMINI_API_KEY missing");
+    }
+
+    const cacheKey = `gemini:${tokenData.address}:v1`;
+
+    return await getOrSetCacheLocked(cacheKey, async () => {
+
+        const genAI = new GoogleGenerativeAI(apiKey);
+
+        const model = genAI.getGenerativeModel({
+            model: "gemini-flash-latest"
+        });
+
+        const prompt = `
 You are an elite crypto risk analyst.
 
-Analyze the token using these metrics:
+Analyze this token:
 
 Market Cap: ${tokenData.marketCap}
 Liquidity: ${tokenData.liquidity}
 24h Volume: ${tokenData.volume}
 Token Age: ${tokenData.age}
-Top Holder Percentage: ${tokenData.topHolder}
+Top Holder %: ${tokenData.topHolder}
 
-Return ONLY valid JSON.
+Return ONLY valid JSON with this EXACT structure:
 
 {
  "threat": "LOW | MODERATE | HIGH | EXTREME",
- "confidence": number,
- "summary": "max 20 words"
+ "confidence": number (0-100),
+ "summary": "max 20 words",
+ "aiExplanation": [
+   { "text": "Key point 1", "confidence": number },
+   { "text": "Key point 2", "confidence": number }
+ ],
+ "detailedReasoning": [
+   { "title": "Liquidity Analysis", "content": "..." },
+   { "title": "Holder Analysis", "content": "..." },
+   { "title": "Volume Analysis", "content": "..." }
+ ]
 }
 `;
 
-    const result = await model.generateContent(prompt);
+        // ✅ TIMEOUT PROTECTION
+        const result = await Promise.race([
 
-    let text = result.response.text();
+            model.generateContent(prompt),
 
-    // Clean accidental markdown if Gemini adds it
-    text = text.replace(/```json|```/g, "").trim();
+            new Promise((_, reject) =>
+                setTimeout(() => reject(new Error("Gemini timeout")), 15000)
+            )
+        ]);
 
-    return JSON.parse(text);
+        let text = result.response.text();
+
+        // Gemini sometimes wraps JSON
+        text = text.replace(/```json|```/g, "").trim();
+
+        return JSON.parse(text);
+
+    });
 };

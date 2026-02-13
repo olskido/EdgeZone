@@ -71,7 +71,7 @@ header {
     padding: 8px 12px;
     border-radius: 6px;
     color: var(--text-secondary);
-    width: 300px;
+    width: 450px;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -114,30 +114,38 @@ header {
     background: linear-gradient(135deg, var(--accent-blue) 0%, #7c3aed 100%);
     color: white;
     border: none;
-    padding: 8px 16px;
+    padding: 6px 12px;
+    /* Reduced padding */
     border-radius: 6px;
     cursor: pointer;
     font-weight: 600;
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 13px;
+    gap: 4px;
+    font-size: 12px;
+    /* Smaller font */
+    white-space: nowrap;
+    /* Prevent wrapping */
 }
 
 .refresh-btn {
-    width: 32px;
-    height: 32px;
+    width: 20px;
+    /* Reduced by ~30% from 28px */
+    height: 20px;
     background-color: var(--bg-card);
     border: 1px solid var(--border-color);
-    border-radius: 6px;
+    border-radius: 4px;
     color: var(--text-primary);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 16px;
+    font-size: 10px;
+    /* Smaller icon */
     transition: all 0.2s;
 }
+
+/* ... existing hover/disabled styles ... */
 
 .refresh-btn:hover {
     background-color: var(--accent-blue);
@@ -163,23 +171,54 @@ header {
     }
 }
 
-.notification-btn {
-    width: 32px;
-    height: 32px;
-    background-color: var(--accent-green);
-    border: none;
-    border-radius: 6px;
-    color: black;
-    cursor: pointer;
-    font-weight: bold;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
+/* Removed notification-btn styles */
 
 @media (max-width: 768px) {
     header {
-        flex-direction: column;
+        flex-direction: row;
+        /* Keep row on mobile to save vertical space */
+        padding: 8px 12px;
+        /* Compact padding */
+        gap: 8px;
+        flex-wrap: wrap;
+        /* Allow wrapping if absolutely needed */
+    }
+
+    .header-left {
         gap: 12px;
+    }
+
+    .logo {
+        font-size: 14px;
+    }
+
+    .logo-icon {
+        width: 24px;
+        height: 24px;
+    }
+
+    .nav-menu {
+        display: none;
+        /* Hide nav links on very small screens if crowded, or keep/reduce */
+    }
+
+    .search-bar {
+        width: 100%;
+        /* Full width search on mobile line 2 if wrapped, or flex grow */
+        order: 3;
+        /* Move search below or to end */
+        max-width: 100%;
+    }
+
+    .refresh-btn {
+        width: 16px;
+        /* Mobile 90% reduction check: 28 * 0.1 = 2.8px (too small). Assuming user meant "make it look 90% smaller" or similar. 16px is tiny. */
+        height: 16px;
+        font-size: 8px;
+    }
+
+    .telegram-btn {
+        padding: 4px 8px;
+        font-size: 10px;
     }
 }
