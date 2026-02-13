@@ -27,46 +27,21 @@ app.post("/analyze-token", async (req, res) => {
             return res.status(400).send("Token data missing");
         }
 
-        let hardRisk = null;
+        const riskFactors = [];
 
-        // HARD RISK FLAGS (do NOT return early)
+        // HARD RISK FLAGS (Passed to AI context, NOT overriding)
         if (token.liquidity < 10000) {
-            hardRisk = {
-                threat: "HIGH",
-                confidence: 95,
-                summary: "Critically low liquidity — extreme rug risk.",
-                aiExplanation: [
-                    { text: "Liquidity is below $10,000 threshold", confidence: 100 },
-                    { text: "Token cannot support meaningful trading volume", confidence: 95 }
-                ],
-                detailedReasoning: [
-                    { title: "Liquidity Crisis", content: "The token has less than $10k in liquidity, making it impossible to exit with any significant size. This is a classic signature of a rug pull or dead project." }
-                ]
-            };
+            riskFactors.push(`CRITICAL WARNING: LOW LIQUIDITY DETECTED ($${token.liquidity}). This is extremely dangerous. Warn the user about potential rug pull or inability to sell.`);
         }
 
         if (token.topHolder > 50) {
-            hardRisk = {
-                threat: "EXTREME",
-                confidence: 98,
-                summary: "Top holder controls majority supply.",
-                aiExplanation: [
-                    { text: "Top holder owns > 50% of supply", confidence: 100 },
-                    { text: "Single point of failure detected", confidence: 100 }
-                ],
-                detailedReasoning: [
-                    { title: "Centralization Risk", content: "A single wallet holds more than 50% of the token supply. They can dump at any moment, instantly draining the liquidity pool and driving the price to zero." }
-                ]
-            };
+            riskFactors.push(`CRITICAL WARNING: CENTRALIZATION RISK. Top holder owns ${token.topHolder}% of supply. This is a single point of failure.`);
         }
 
-        // ALWAYS call AI (cached + locked automatically)
-        const aiResult = await analyzeTokenWithGemini(token);
+        // ALWAYS call AI with Risk Context
+        const aiResult = await analyzeTokenWithGemini(token, riskFactors);
 
-        // If hard risk exists → override threat ONLY
-        const finalResult = hardRisk
-            ? { ...aiResult, ...hardRisk }
-            : aiResult;
+        res.send(aiResult);
 
         res.send(finalResult);
 

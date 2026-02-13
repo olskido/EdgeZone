@@ -166,44 +166,47 @@ export const api = {
 };
 
 // Fetch token price and market data
+// Fetch token price and market data via DexScreener (Better for Solana)
 async function fetchTokenPrice(address) {
   try {
-    const url = `${MORALIS_BASE_URL}/solana/token/${address}/price`;
-    const response = await fetch(url, {
-      headers: {
-        'accept': 'application/json',
-        'X-API-Key': MORALIS_API_KEY,
-      },
-    });
+    const url = `https://api.dexscreener.com/latest/dex/tokens/${address}`;
+    const response = await fetch(url);
 
     if (!response.ok) {
-      throw new Error(`Price fetch failed: ${response.status}`);
+      throw new Error(`DexScreener fetch failed: ${response.status}`);
     }
 
     const data = await response.json();
 
+    // DexScreener returns pairs. We want the best Solana pair.
+    const pairs = data.pairs || [];
+    const solPair = pairs
+      .filter(p => p.chainId === 'solana')
+      .sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0];
+
+    if (!solPair) {
+      throw new Error('No Solana pair found on DexScreener');
+    }
+
     return {
-      price: parseFloat(data.usdPrice || 0),
-      priceChange24h: parseFloat(data['24hrPercentChange'] || 0), // Note: Moralis Solana price endpoint might use different key, verifying...
-      // Using fallback for marketCap/liquidity if not in this specific endpoint, 
-      // but usually price endpoint is limited. 
-      // ACTUALLY, checking standard Moralis Solana Price response: { usdPrice, exchangeAddress, exchangeName }
-      // It might NOT return Volume/Liquidity/MC. 
-      // We might need a Pairs endpoint or Enhanced Token API.
-      // For now, let's map what we have.
-      marketCap: 0, // Not provided by simple price endpoint
-      liquidity: 0, // Not provided
-      volume24h: 0, // Not provided
-      age: 'Unknown',
+      price: parseFloat(solPair.priceUsd || 0),
+      priceChange24h: parseFloat(solPair.priceChange?.h24 || 0),
+      marketCap: parseFloat(solPair.fdv || 0), // Fully Diluted Valuation as MC
+      liquidity: parseFloat(solPair.liquidity?.usd || 0),
+      volume24h: parseFloat(solPair.volume?.h24 || 0),
+      age: solPair.pairCreatedAt || 'Unknown',
     };
 
-
-    // Re-writing the replacement to be safe:
-
   } catch (err) {
-    console.warn('Price data unavailable:', err.message);
+    console.warn('DexScreener data unavailable:', err.message);
+    // Fallback to basic 0s if fails, but log it
     return {
       price: 0,
+      priceChange24h: 0,
+      marketCap: 0,
+      liquidity: 0,
+      volume24h: 0,
+      age: 'Unknown'
     };
   }
 }

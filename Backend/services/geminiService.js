@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-export const analyzeTokenWithGemini = async (tokenData) => {
+export const analyzeTokenWithGemini = async (tokenData, riskFactors = []) => {
 
     const apiKey = process.env.GEMINI_API_KEY;
 
@@ -24,6 +24,9 @@ export const analyzeTokenWithGemini = async (tokenData) => {
 
         const prompt = `
 You are an elite crypto risk analyst.
+
+[CRITICAL RISK CONTEXT from On-Chain Data]
+${riskFactors.length > 0 ? riskFactors.join('\n') : "No critical hard-coded risks detected."}
 
 Analyze this token:
 
