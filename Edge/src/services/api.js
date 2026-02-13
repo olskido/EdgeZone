@@ -134,10 +134,13 @@ export const api = {
     }
   },
 
-  // AI Analysis - Connects to local backend
+  // AI Analysis - Connects to Backend
   analyzeToken: async (token) => {
     try {
-      const response = await fetch('http://localhost:5001/analyze-token', {
+      // Use Env Var or Default to Render Backend
+      const API_BASE = import.meta.env.VITE_API_URL || 'https://edgezone-zh1u.onrender.com';
+
+      const response = await fetch(`${API_BASE}/analyze-token`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -194,7 +197,8 @@ async function fetchTokenPrice(address) {
       marketCap: parseFloat(solPair.fdv || 0), // Fully Diluted Valuation as MC
       liquidity: parseFloat(solPair.liquidity?.usd || 0),
       volume24h: parseFloat(solPair.volume?.h24 || 0),
-      age: solPair.pairCreatedAt || 'Unknown',
+      // Fix: Convert timestamp to string format (e.g. "5d") for risk engine
+      age: formatTokenAge(solPair.pairCreatedAt),
     };
 
   } catch (err) {
