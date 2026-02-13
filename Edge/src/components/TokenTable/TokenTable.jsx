@@ -146,8 +146,6 @@ const TokenTable = () => {
                                 <div className="col-metric">{formatVol(token.marketCap)}</div>
                                 <div className="col-metric">{formatVol(token.liquidity)}</div>
 
-                                <div className="col-metric">{formatVol(token.liquidity)}</div>
-
                                 {/* Expand Toggle */}
                                 <div className="col-expand" onClick={(e) => toggleExpand(e, token.id)}>
                                     {isExpanded ? '▲' : '▼'}

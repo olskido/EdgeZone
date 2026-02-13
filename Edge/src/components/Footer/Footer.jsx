@@ -6,7 +6,7 @@ const Footer = () => {
         <footer>
             <div className="footer-content">
                 <div className="footer-grid">
-                    {/* Project Summary Column */}
+                    {/* Project Summary Column (Left) */}
                     <div className="footer-column summary-col">
                         <h3>EDGE ZONE™</h3>
                         <p className="footer-summary">
@@ -16,19 +16,8 @@ const Footer = () => {
                         </p>
                     </div>
 
-                    {/* Features Column */}
+                    {/* Social/Redirect Column (Right) */}
                     <div className="footer-column">
-                        <h3>PLATFORM</h3>
-                        <div className="footer-links">
-                            <a href="#" className="footer-link">📈 Hype Tracker</a>
-                            <a href="#" className="footer-link">💾 EDGE Memory</a>
-                            <a href="#" className="footer-link">📚 Documentation</a>
-                        </div>
-                    </div>
-
-                    {/* Social/Redirect Column */}
-                    <div className="footer-column">
-                        <h3>CONNECT</h3>
                         <div className="social-grid">
                             <a href="https://x.com/olskido" target="_blank" rel="noreferrer" className="social-btn">
                                 <img src="/src/assets/footer_icons/x.png" alt="X" />

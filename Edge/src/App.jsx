@@ -105,7 +105,8 @@ function EdgeZoneApp() {
     setIsRefreshing(true);
     console.log('🔄 Manual refresh started...');
     try {
-      await qc.invalidateQueries({ queryKey: ['tokens'] });
+      // refetch() alone is enough to update data in background without clearing it
+      // invalidateQueries might cause a hard loading state depending on config, so we start with refetch
       await refetch();
       console.log('✅ Manual refresh complete');
     } catch (err) {
@@ -113,7 +114,7 @@ function EdgeZoneApp() {
     } finally {
       setTimeout(() => setIsRefreshing(false), 1000);
     }
-  }, [qc, refetch]);
+  }, [refetch]);
 
   return (
     <>
