@@ -111,8 +111,6 @@ const TokenTable = () => {
                 <div className="col-metric clickable" onClick={() => handleSort('liquidity')}>
                     Liquidity {renderSortArrow('liquidity')}
                 </div>
-                {/* Trade Sentiment Header (Replaces Vol/Age) */}
-                <div className="col-sentiment">Trade Sentiment</div>
             </div>
 
             {/* Body */}
@@ -148,102 +146,80 @@ const TokenTable = () => {
                                 <div className="col-metric">{formatVol(token.marketCap)}</div>
                                 <div className="col-metric">{formatVol(token.liquidity)}</div>
 
-                                {/* Trade Sentiment Bar */}
-                                <div className="col-sentiment">
-                                    <div className="sentiment-wrapper">
-                                        <div className="sentiment-bar">
-                                            <div className="buy-zone" style={{ width: `${buyPercent}%` }}></div>
-                                            <div className="pivot-line"></div>
-                                            <div className="sell-zone" style={{ width: `${100 - buyPercent}%` }}></div>
-                                        </div>
-                                        <span className="sentiment-text" style={{
-                                            color: buyPercent > 55 ? 'var(--neon-green)' : buyPercent < 45 ? 'var(--neon-red)' : '#94a3b8'
-                                        }}>
-                                            {buyPercent.toFixed(0)}% Buy
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {/* Trade Sentiment Bar */}
-                                <div className="col-threat-icon">
-                                    {(() => {
-                                        const buys = token.buys24h || 0;
-                                        const sells = token.sells24h || 0;
-                                        const total = buys + sells;
-                                        const sentiment = total > 0 ? (buys / total) * 100 : 50;
-
                                         // Color logic: <40 red, >60 green, else yellow/neutral
-                                        let barColor = '#3b82f6'; // Default blue (neutral)
+                                let barColor = '#3b82f6'; // Default blue (neutral)
                                         if (sentiment > 60) barColor = '#22c55e'; // Green
-                                        else if (sentiment < 40) barColor = '#ef4444'; // Red
-                                        else barColor = '#f59e0b'; // Yellow
+                                else if (sentiment < 40) barColor = '#ef4444'; // Red
+                                else barColor = '#f59e0b'; // Yellow
 
-                                        return (
-                                            <div className="sentiment-container" style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                                <div style={{
-                                                    height: '6px',
-                                                    width: '100%',
-                                                    background: '#334155',
-                                                    borderRadius: '4px',
-                                                    overflow: 'hidden'
-                                                }}>
-                                                    <div style={{
-                                                        height: '100%',
-                                                        width: `${sentiment}%`,
-                                                        background: barColor,
-                                                        transition: 'width 0.3s'
-                                                    }} />
-                                                </div>
-                                                <span style={{ fontSize: '10px', color: '#94a3b8', textAlign: 'center' }}>
-                                                    {sentiment.toFixed(0)}% Buy
-                                                </span>
-                                            </div>
-                                        );
+                                return (
+                                <div className="sentiment-container" style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                    <div style={{
+                                        height: '6px',
+                                        width: '100%',
+                                        background: '#334155',
+                                        borderRadius: '4px',
+                                        overflow: 'hidden'
+                                    }}>
+                                        <div style={{
+                                            height: '100%',
+                                            width: `${sentiment}%`,
+                                            background: barColor,
+                                            transition: 'width 0.3s'
+                                        }} />
+                                    </div>
+                                    <span style={{ fontSize: '10px', color: '#94a3b8', textAlign: 'center' }}>
+                                        {sentiment.toFixed(0)}% Buy
+                                    </span>
+                                </div>
+                                );
                                     })()}
-                                </div>
-
-                                {/* Expand Toggle */}
-                                <div className="col-expand" onClick={(e) => toggleExpand(e, token.id)}>
-                                    {isExpanded ? '▲' : '▼'}
-                                </div>
                             </div>
 
-                            {/* Expanded Details - Keeping extra info here */}
-                            {isExpanded && (
-                                <div className="table-row-details">
-                                    <div className="detail-grid">
-                                        <div className="detail-item">
-                                            <label>Price Δ24h</label>
-                                            <span className={token.priceChange24h >= 0 ? 'positive' : 'negative'}>
-                                                {formatPercent(token.priceChange24h)}
-                                            </span>
-                                        </div>
-                                        <div className="detail-item">
-                                            <label>Vol Δ24h</label>
-                                            <span className={token.volumeChange24h >= 0 ? 'positive' : 'negative'}>
-                                                {formatPercent(token.volumeChange24h)}
-                                            </span>
-                                        </div>
-                                        <div className="detail-item">
-                                            <label>Momentum</label>
-                                            <span>{token.momentumScore || 0}</span>
-                                        </div>
-                                        <div className="detail-item">
-                                            <label>Contract</label>
-                                            <span className="mono">{token.contract?.slice(0, 6)}...{token.contract?.slice(-4)}</span>
-                                        </div>
-                                        <div className="detail-item">
-                                            <label>Liq/MC Ratio</label>
-                                            <span>{token.convictionRatio ? token.convictionRatio.toFixed(2) : '0'}%</span>
-                                        </div>
+                            {/* Expand Toggle */}
+                            <div className="col-expand" onClick={(e) => toggleExpand(e, token.id)}>
+                                {isExpanded ? '▲' : '▼'}
+                            </div>
+                        </div>
+
+                            {/* Expanded Details - Keeping extra info here */ }
+                    {
+                        isExpanded && (
+                            <div className="table-row-details">
+                                <div className="detail-grid">
+                                    <div className="detail-item">
+                                        <label>Price Δ24h</label>
+                                        <span className={token.priceChange24h >= 0 ? 'positive' : 'negative'}>
+                                            {formatPercent(token.priceChange24h)}
+                                        </span>
+                                    </div>
+                                    <div className="detail-item">
+                                        <label>Vol Δ24h</label>
+                                        <span className={token.volumeChange24h >= 0 ? 'positive' : 'negative'}>
+                                            {formatPercent(token.volumeChange24h)}
+                                        </span>
+                                    </div>
+                                    <div className="detail-item">
+                                        <label>Momentum</label>
+                                        <span>{token.momentumScore || 0}</span>
+                                    </div>
+                                    <div className="detail-item">
+                                        <label>Contract</label>
+                                        <span className="mono">{token.contract?.slice(0, 6)}...{token.contract?.slice(-4)}</span>
+                                    </div>
+                                    <div className="detail-item">
+                                        <label>Liq/MC Ratio</label>
+                                        <span>{token.convictionRatio ? token.convictionRatio.toFixed(2) : '0'}%</span>
                                     </div>
                                 </div>
-                            )}
+                            </div>
+                        )
+                    }
                         </div>
-                    );
+            );
                 })}
-            </div>
         </div>
+        </div >
     );
 };
 

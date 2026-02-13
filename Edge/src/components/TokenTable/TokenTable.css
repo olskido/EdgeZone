@@ -46,14 +46,14 @@
 .table-header-row.user-layout,
 .table-row-primary.user-layout {
     display: grid;
-    /* Token | Price | MC | Liq | Sentiment */
-    grid-template-columns: 1.5fr 0.8fr 0.8fr 0.8fr 1.2fr;
-    gap: 8px;
+    /* Token | Price | MC | Liq */
+    grid-template-columns: 1.5fr 1fr 1fr 1fr;
+    gap: 12px;
     padding: 12px 16px;
     align-items: center;
 }
 
-/* Mobile Compression */
+/* Mobile Adjustments (Clean, not compressed) */
 @media (max-width: 768px) {
     .table-container {
         border: none;
@@ -62,54 +62,29 @@
 
     .table-header-row.user-layout,
     .table-row-primary.user-layout {
-        padding: 8px 4px;
-        /* Tight padding */
-        gap: 2px;
-        /* Minimal gap */
-        grid-template-columns: 1.2fr 0.7fr 0.7fr 0.7fr 1fr;
-        font-size: 10px;
-        /* Smaller font */
+        padding: 12px 8px;
+        gap: 8px;
+        /* Token | Price | MC | Liq */
+        grid-template-columns: 1.5fr 1fr 0.8fr 0.8fr;
+        font-size: 11px;
     }
 
-    /* Token Column */
     .col-token {
-        gap: 4px;
+        gap: 8px;
     }
 
     .token-logo {
-        width: 16px;
-        height: 16px;
+        width: 20px;
+        height: 20px;
     }
 
-    .token-sym {
-        font-size: 10px;
-    }
-
+    /* Show name again, but truncate if needed */
     .token-name {
-        display: none;
-        /* Hide full name on mobile to save space */
-    }
-
-    /* Metrics */
-    .col-metric {
-        font-size: 10px;
-        text-align: right;
-        /* Align numbers right */
-    }
-
-    /* Sentiment */
-    .col-sentiment {
-        font-size: 9px;
-    }
-
-    .sentiment-bar {
-        height: 4px;
-    }
-
-    /* Header specific adjustments */
-    .table-header-row.user-layout {
-        font-size: 9px;
-        letter-spacing: 0;
+        display: block;
+        max-width: 60px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 }
 
