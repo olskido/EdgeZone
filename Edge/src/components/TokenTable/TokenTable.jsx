@@ -146,34 +146,7 @@ const TokenTable = () => {
                                 <div className="col-metric">{formatVol(token.marketCap)}</div>
                                 <div className="col-metric">{formatVol(token.liquidity)}</div>
 
-                                        // Color logic: <40 red, >60 green, else yellow/neutral
-                                let barColor = '#3b82f6'; // Default blue (neutral)
-                                        if (sentiment > 60) barColor = '#22c55e'; // Green
-                                else if (sentiment < 40) barColor = '#ef4444'; // Red
-                                else barColor = '#f59e0b'; // Yellow
-
-                                return (
-                                <div className="sentiment-container" style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                    <div style={{
-                                        height: '6px',
-                                        width: '100%',
-                                        background: '#334155',
-                                        borderRadius: '4px',
-                                        overflow: 'hidden'
-                                    }}>
-                                        <div style={{
-                                            height: '100%',
-                                            width: `${sentiment}%`,
-                                            background: barColor,
-                                            transition: 'width 0.3s'
-                                        }} />
-                                    </div>
-                                    <span style={{ fontSize: '10px', color: '#94a3b8', textAlign: 'center' }}>
-                                        {sentiment.toFixed(0)}% Buy
-                                    </span>
-                                </div>
-                                );
-                                    })()}
+                                <div className="col-metric">{formatVol(token.liquidity)}</div>
                             </div>
 
                             {/* Expand Toggle */}
