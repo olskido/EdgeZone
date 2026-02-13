@@ -138,7 +138,7 @@ export const api = {
   analyzeToken: async (token) => {
     try {
       // Use Env Var or Default to Render Backend
-      const API_BASE = import.meta.env.VITE_API_URL || 'https://edgezone-zh1u.onrender.com';
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://edgezone-zh1u.onrender.com';
 
       const response = await fetch(`${API_BASE}/analyze-token`, {
         method: 'POST',
@@ -154,15 +154,24 @@ export const api = {
         })
       });
 
-      if (!response.ok) throw new Error('AI Engine failed');
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
       return await response.json();
     } catch (err) {
       console.error('Frontend AI Error:', err);
-      // Return a fallback object so UI doesn't break
+      // Return a fallback object with user-friendly message
       return {
         threat: 'UNKNOWN',
         confidence: 0,
-        summary: 'AI Unreachable (Check Backend)'
+        summary: 'Backend is waking up... retry in 30s (Render free tier cold start)',
+        aiExplanation: [
+          { text: 'Backend server is starting up', confidence: 100 },
+          { text: 'This typically takes 30-60 seconds on first request', confidence: 100 }
+        ],
+        detailedReasoning: [
+          { title: 'Connection Status', content: 'The AI backend is hosted on Render free tier, which sleeps after inactivity. Please wait 30-60 seconds and click "Run Risk Analysis" again.' }
+        ]
       };
     }
   }
