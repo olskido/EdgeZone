@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getOrSetCacheLocked } from "./redisClient.js";
+import { getSocialSignals } from "./socialService.js";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -12,7 +13,10 @@ export const analyzeTokenWithGemini = async (tokenData, riskFactors = []) => {
         throw new Error("GEMINI_API_KEY missing");
     }
 
-    const cacheKey = `gemini:${tokenData.address}:v1`;
+    // Fetch social signals (non-blocking, returns 0s if fails)
+    const socialData = await getSocialSignals(tokenData);
+
+    const cacheKey = `gemini:${tokenData.address}:v2`; // v2 to invalidate old cache
 
     return await getOrSetCacheLocked(cacheKey, async () => {
 
@@ -36,6 +40,13 @@ Inputs you will receive:
 - 24h Volume: ${tokenData.volume}
 - Token Age: ${tokenData.age}
 - Top Holder %: ${tokenData.topHolder}
+- Social Mentions 24h: ${socialData.mentions24h} (Sentiment: ${socialData.sentiment}/100, Spike: ${socialData.spike}%)
+
+[SOCIAL SIGNAL INTERPRETATION]
+- High positive spike (>200%) + good metrics = community hype, lower risk
+- Negative sentiment (<40) + high mentions = dying community, red flag
+- Zero mentions = no community interest, possible dead project
+- Very high mentions (>10k) + young age (<7d) = possible coordinated pump
 
 Follow this EXACT step-by-step process — do NOT skip or change steps:
 
