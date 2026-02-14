@@ -47,6 +47,7 @@ function EdgeZoneApp() {
 
   const handleBackToTable = () => {
     selectToken(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // Fetch tokens with React Query

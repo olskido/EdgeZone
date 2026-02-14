@@ -299,16 +299,22 @@ const Sidebar = ({ isMobile, onBack }) => {
                     {isMobile && onBack && (
                         <button
                             onClick={onBack}
+                            className="mobile-back-btn"
                             style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: '#a1a1aa',
-                                fontSize: '1.2rem',
-                                marginRight: '8px',
-                                cursor: 'pointer'
+                                background: 'rgba(255,255,255,0.1)',
+                                border: '1px solid var(--border-color)',
+                                color: '#e4e4e7',
+                                fontSize: '0.9rem',
+                                marginRight: '12px',
+                                cursor: 'pointer',
+                                padding: '6px 12px',
+                                borderRadius: '6px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px'
                             }}
                         >
-                            ←
+                            <span>←</span> Back
                         </button>
                     )}
                     <div className="token-name-large">
